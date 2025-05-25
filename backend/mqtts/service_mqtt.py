@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 
 from dtos.dto_log import InputLog
 from repositories.repository_log import LogRepository
+from databases.mongodb import get_log_collection
 
 load_dotenv()
 
@@ -14,9 +15,7 @@ BROKER_ADDRESS = os.getenv("MQTT_ADDRESS")
 BROKER_PORT = int(os.getenv("MQTT_PORT"))
 
 TOPICS = [
-    ("OTA/Node-DHT", 0),
-    ("Pollux/log/Firmware_Update", 0),
-    ("OTA/Water_Node", 0),
+    ("LokaSync/CloudOTA/Log", 0),
     ("LokaSync/CloudOTA/Firmware", 0)
 ]
 
@@ -29,36 +28,43 @@ def on_connect(client, userdata, flags, rc):
         print(f"Subscribed to {topic}")
 
 def on_message(client, userdata, msg):
-    print(f"Received message on {msg.topic}: {msg.payload.decode()}")
-    try:
-        data = json.loads(msg.payload.decode())
-        topic = msg.topic
+    payload_raw = msg.payload.decode()
+    topic = msg.topic
 
-        if topic == "Pollux/log/Firmware_Update":
+    print(f"[MQTT] Received on {topic}: {payload_raw}")
+
+    try:
+        data = json.loads(payload_raw)
+
+        if topic == "LokaSync/CloudOTA/Log":
             asyncio.run_coroutine_threadsafe(add_log(data), loop)
-                        
-        elif topic == "Pollux/log/Firmware":
+        elif topic == "LokaSync/CloudOTA/Firmware":
             pass
-        elif topic == "sensor/temperature":
-            pass
+        else:
+            print(f"[MQTT] unhandled topic: {topic}")
+    except json.JSONDecodeError:
+        print(f"[MQTT] Invalid JSON format on topic {topic}")        
     except Exception as e:
-        print("MQTT Data Error", e)
+        print(f"[MQTT] Error processing message from {topic}")
 
 async def add_log(payload: dict):
-    repository_mqtt_log = LogRepository()
-    required_keys = ["node_name", "node_location", "node_status", "first_version", "latest_version"]
-    if all(k in payload for k in required_keys):
-        node_status = True if payload["node_status"] == "active" else False
+    try:
+        required_keys = ["type", "message", "node_name", "firmware_version"]
+        if all(k in payload for k in required_keys):
+            print(f"[MQTT] Incomplete payload: {payload}")
+            return
+        
+        payload.pop("timestamp", None)
 
-        input_log = InputLog(
-            node_location=payload["node_location"],
-            node_status=node_status,
-            first_version=payload["first_version"],
-            latest_version=payload["latest_version"]
-        )
-        await repository_mqtt_log.add_log(input_log, node_name=payload["node_name"])
-    else:
-        print("Payload tidak valid atau field kurang")
+        input_log = InputLog(**payload)
+
+        repo = LogRepository(get_log_collection)
+        result = await repo.add_log(input_log)
+
+        print(f"[MQTT] Log added: {result}")
+
+    except Exception as e:
+        print(f"[MQTT] Failed to insert log: {e} | Payload: {payload}")
 
 
 def start_mqtt():

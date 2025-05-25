@@ -9,24 +9,17 @@ from typing import Optional
 from datetime import datetime, timezone
 from math import ceil
 from bson import ObjectId
+from databases.mongodb import get_firmware_collection
 
-from motor.motor_asyncio import AsyncIOMotorClient
 from cores.service_drive import upload_to_drive
 from dtos.dto_firmware import UploadFirmwareForm, UpdateFirmwareForm, UpdateFirmwareDescriptionForm, OutputFirmwarePagination, OuputFirmwareByNodeName
 from repositories.repository_firmware import FirmwareRepository
 
 load_dotenv()
-
-MONGO_URL = os.getenv("MONGO_URL")
-MONGO_DB_NAME = os.getenv("MONGO_DB_NAME")
 MQTT_ADDRESS = os.getenv("MQTT_ADDRESS")
 
-client = AsyncIOMotorClient(MONGO_URL)
-mongo_db = client[MONGO_DB_NAME]
-firmware_collection = mongo_db["firmware"]
-
 def get_firmware_repository():
-    return FirmwareRepository(firmware_collection)
+    return FirmwareRepository(get_firmware_collection)
 
 class ServiceFirmware:
     def __init__(self, firmware_repository: FirmwareRepository = Depends(get_firmware_repository)):

@@ -1,14 +1,15 @@
 from pydantic import BaseModel, field_validator
 from datetime import datetime
-from typing import Any
+from typing import Any, Dict, Optional
 
 class Log(BaseModel):
     _id:str
-    node_location:str
-    node_status:bool
-    latest_updated:datetime
-    first_version:str
-    latest_version:str
+    type:str
+    message:str
+    node_name:str
+    timestamp:datetime
+    firmware_version:str
+    data: Optional[Dict[str, Any]] = None
 
     @field_validator("latest_updated", mode="before")
     @classmethod

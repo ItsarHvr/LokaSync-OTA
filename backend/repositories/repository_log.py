@@ -1,101 +1,100 @@
-from firebase_admin import firestore
 from typing import List, Optional
-from google.cloud.firestore_v1.base_query import FieldFilter
 from datetime import datetime, timezone
 from fastapi.exceptions import HTTPException
-
+from motor.motor_asyncio import AsyncIOMotorCollection
 from models.model_log import Log
 from dtos.dto_log import InputLog, FilterOption
 
 class LogRepository:
-    def __init__(self):
-        self.db = firestore.client()
-        self.log_ref = self.db.collection("log")
+    def __init__(self, collection: AsyncIOMotorCollection):
+        self.collection = collection
 
     async def get_list_log(
         self,
-        node_location: Optional[str] = None,
-        node_status: Optional[bool] = None,
+        node_name: Optional[str] = None,
+        firmware_version: Optional[str] = None,
         page: int = 1,
-        per_page: int = 5
+        per_page: int = 10
     ) -> List[Log]:
-        query = self.log_ref
+        # base query
+        match_query = {}
+        if node_name is not None:
+            match_query["node_name"] = node_name
+        if firmware_version is not None:
+            match_query["firmware_version"] = firmware_version
 
-        # 1. Collect filter data if any.
-        if node_location is not None:
-            query = query.where(filter=FieldFilter("node_location", "==", node_location))
-        if node_status is not None:
-            query = query.where(filter=FieldFilter("node_status", "==", node_status))
+        # MongoDB aggregation pipline
+        pipeline = [
+            # Stage 1: Match documents based on query filters
+            {"$match": match_query},
+            # Stage 2: Sort by latest_updated
+            {"$sort": {"timestamp": -1}},
+            # Stage 3: Skip for pagination
+            {"skip": (page - 1) * per_page},
+            # Stage 4: Limit results per page
+            {"$limit": per_page}
+        ]
 
-        # 2. Order filtered data by latest_updated field.
-        query = query.order_by("latest_updated", direction=firestore.Query.DESCENDING)
+        cursor = self.collection.aggregate(pipeline)
+        docs = await cursor.to_list(length=per_page)
 
-        # 3. Set offset dan limit.
-        # Offset itu intinya pertambahan item di halaman berikutnya (skip kalau di mongo).
-        # Limit itu batasan item yang ditampilkan di halaman tersebut (per page)
-        offset = (page -1) * per_page
-        query = query.limit(per_page).offset(offset)
-
-        # 4. Get the results.
-        results = query.stream()
-        logs = [Log(**doc.to_dict()) for doc in results]
-
-        return logs
+        return [
+            Log(
+                _id=str(doc["_id"]),
+                type=doc["type"],
+                message=doc["message"],
+                node_name=doc["node_name"],
+                firmware_url=doc["firmware_url"],
+                latest_updated=doc["latest_updated"],
+                firmware_version=doc["firmware_version"]
+            )
+            for doc in docs
+        ]
     
     async def count_list_log(
             self,
-            node_location: Optional[str] = None,
-            node_status: Optional[bool] = None,
+            node_name: Optional[str] = None,
+            firmware_version: Optional[str] = None,
     ) -> int:
-        query = self.log_ref
+        query = {}
+        if node_name is not None:
+            query["node_name"] = node_name
+        if firmware_version is not None:
+            query["firmware_version"] = firmware_version
 
-        # 1. Collect filter data if any.
-        if node_location is not None:
-            query = query.where(filter=FieldFilter("node_location", "==", node_location))
-        if node_status is not None:
-            query = query.where(filter=FieldFilter("node_status", "==", node_status))
+        # MongoDB aggregation pipline
+        pipeline = [
+            # Stage 1: Match documents based on query filters
+            {"$match": query},
+            # Stage 2: Group by node identifier to get unique nodes
+            {"$group": {"_id": "$node_name"}},
+            # Stage 3: Count the number of unique nodes
+            {"$count": "count"}
+        ]
 
-        # 2. Count the documents.
-        docs = query.stream()
+        cursor = self.collection.aggregate(pipeline)
+        result = await cursor.to_list(length=1)
 
-        # 3. Count the number of documents.
-        count = sum(1 for _ in docs)
-
-        return count
+        return result[0]["count"] if result else 0
     
     async def get_filter_options(self) -> FilterOption:
-        # 1. Stream the documents from the collection.
-        docs = self.log_ref.stream()
+        node_names = await self.collection.distinct("node_name")
+        firmware_versions = await self.collection.distinct("firmware_version")
 
-        # 2. Initialize empty lists for node_id and node_location.
-        node_locations = set()
-        node_statuses = set()
-
-        # 3. Iterate through the documents and collect node_id and node_location.
-        for doc in docs:
-            data = doc.to_dict()
-            node_locations.add(data["node_location"])
-            node_statuses.add(data["node_status"])
-
-        # 4. Convert sets to lists and sort them.
-        node_locations = sorted(list(node_locations))
-        node_statuses = sorted(list(node_statuses))
-
-        # 5. Return the filter options as a dictionary.
         return{
-            "node_location": node_locations,
-            "node_status": node_statuses
+            "node_name": node_names,
+            "firmware_version": firmware_versions
         }
     
-    async def add_log(self, log: InputLog, node_name:str):
+    async def add_log(self, log: InputLog) -> dict:
         try:
             log_data = log.model_dump()
-            log_data["latest_updated"] = datetime.now(timezone.utc)
+            log_data["timestamp"] = datetime.now(timezone.utc)
 
-            # Simpan log ke Firestore
-            await self.log_ref.document(node_name).set(log_data, merge=True)
+            # Simpan log ke MongoDB
+            await self.collection.insert_one(log_data)
 
-            return {"message": f"Log Added successfully to {node_name}."}
+            return {"message": f"Log Added successfully."}
         
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail=f"Insert failed: {str(e)}")
