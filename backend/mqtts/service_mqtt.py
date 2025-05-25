@@ -50,7 +50,7 @@ def on_message(client, userdata, msg):
 async def add_log(payload: dict):
     try:
         required_keys = ["type", "message", "node_name", "firmware_version"]
-        if all(k in payload for k in required_keys):
+        if not all(k in payload for k in required_keys):
             print(f"[MQTT] Incomplete payload: {payload}")
             return
         
@@ -58,7 +58,7 @@ async def add_log(payload: dict):
 
         input_log = InputLog(**payload)
 
-        repo = LogRepository(get_log_collection)
+        repo = LogRepository(get_log_collection())
         result = await repo.add_log(input_log)
 
         print(f"[MQTT] Log added: {result}")

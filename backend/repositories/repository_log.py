@@ -30,7 +30,7 @@ class LogRepository:
             # Stage 2: Sort by latest_updated
             {"$sort": {"timestamp": -1}},
             # Stage 3: Skip for pagination
-            {"skip": (page - 1) * per_page},
+            {"$skip": (page - 1) * per_page},
             # Stage 4: Limit results per page
             {"$limit": per_page}
         ]
@@ -44,9 +44,9 @@ class LogRepository:
                 type=doc["type"],
                 message=doc["message"],
                 node_name=doc["node_name"],
-                firmware_url=doc["firmware_url"],
-                latest_updated=doc["latest_updated"],
-                firmware_version=doc["firmware_version"]
+                timestamp=doc["timestamp"],
+                firmware_version=doc["firmware_version"],
+                data=doc.get("data")
             )
             for doc in docs
         ]

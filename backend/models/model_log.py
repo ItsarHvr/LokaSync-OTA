@@ -11,7 +11,7 @@ class Log(BaseModel):
     firmware_version:str
     data: Optional[Dict[str, Any]] = None
 
-    @field_validator("latest_updated", mode="before")
+    @field_validator("timestamp", mode="before")
     @classmethod
     def parse_custom_datetime(cls, v: Any) -> datetime:
         if isinstance(v, str):
