@@ -19,7 +19,7 @@ load_dotenv()
 MQTT_ADDRESS = os.getenv("MQTT_ADDRESS")
 
 def get_firmware_repository():
-    return FirmwareRepository(get_firmware_collection)
+    return FirmwareRepository(get_firmware_collection())
 
 class ServiceFirmware:
     def __init__(self, firmware_repository: FirmwareRepository = Depends(get_firmware_repository)):
@@ -124,7 +124,7 @@ class ServiceFirmware:
         node_location = firmware_data.get("node_location", "Unknown")
         node_id = firmware_data.get("node_id", "0")
         sensor_type = firmware_data.get("sensor_type", "Unknown")
-        node_name = f"{node_location}-node{node_id}-{sensor_type}".lower()
+        node_name = f"{node_location}-node{node_id}".lower()
         firmware_version = firmware_data.get("firmware_version", "1.0.0")
         firmware_data["node_name"] = node_name
 
