@@ -15,7 +15,7 @@ interface BackendFirmwareResponse {
   status_code?: number;
   statusCode?: number;
   page: number;
-  per_page?: number;
+  page_size?: number;
   size?: number;
   total_data?: number;
   totalData?: number;
@@ -67,7 +67,7 @@ export const FirmwareController = {
     try {
       const queryParams = createQueryParams({
         page,
-        per_page: size,  // Match backend parameter name
+        page_size: size,  // Match backend parameter name
         node_id: filters.nodeId,  // Match backend parameter name
         node_location: filters.nodeLocation,  // Match backend parameter name
         sensor_type: filters.sensorType,  // Match backend parameter name
@@ -82,7 +82,7 @@ export const FirmwareController = {
         message: response.message,
         statusCode: response.status_code || response.statusCode || 200,
         page: response.page,
-        size: response.per_page || response.size || size,
+        size: response.page_size || response.size || size,
         totalData: response.total_data || response.totalData || 0,
         totalPage: response.total_page || response.totalPage || 1,
         filterOptions: {

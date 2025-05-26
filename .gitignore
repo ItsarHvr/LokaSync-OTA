@@ -433,6 +433,7 @@ dist-ssr
 # API keys
 firebase-adminsdk.json
 firebase_sa_key.json
+lokasync-firebase-creds.json
 serviceAccountKey.json
 credentials.json
 
@@ -442,6 +443,7 @@ gdrive_api_key.json
 # Google Cloud service account keys
 gcloud-service-key.json
 lokasyncGoogleDriveKey.json
+lokasync-gdrive-creds.json
 
 # MQTT broker certs
 mqtt-broker-*.pem
@@ -449,3 +451,6 @@ mqtt-broker-*.crt
 ca*.pem
 ca*.crt
 emqxsl-*.crt
+
+# Temporary folders to store firmware files.
+temp/

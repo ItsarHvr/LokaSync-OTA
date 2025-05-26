@@ -111,7 +111,7 @@ const Dashboard = () => {
         firmware_data: FirmwareItem[];
       }
       
-      const response = await fetchWithAuth<FirmwareResponse>(`/firmware/get_by_node_name/${nodeName}?page=1&per_page=10`);
+      const response = await fetchWithAuth<FirmwareResponse>(`/firmware/get_by_node_name/${nodeName}?page=1&page_size=10`);
       
       // Extract versions from response with proper typing
       const versions: string[] = response.firmware_data.map(
