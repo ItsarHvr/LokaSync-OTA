@@ -1,0 +1,276 @@
+#include <WiFi.h>
+#include <PubSubClient.h>
+#include <DHT.h>
+#include <HTTPClient.h>
+#include <Update.h>
+#include <ArduinoJson.h>
+#include <WiFiClientSecure.h>
+
+#define DHTPIN 5
+#define DHTTYPE DHT22
+#define MAX_SSID 3
+
+DHT dht(DHTPIN, DHTTYPE);
+const char* ssidList[MAX_SSID] = {"INDOMIE AYAM BAWANG", "AMBATUSPOT", "INDOMIE SOTO"};
+const char* passList[MAX_SSID] = {"agustus2023", "123456789", "123443211234"};
+
+const char* mqtt_server = "server";
+const int mqtt_port = 8883;
+const char* topic_sensor = "Monitoring";
+const char* topic_log = "OTAUpdate";
+const char* topic_ota = "FirmwareUpdate";
+
+const char* NODE_LOCATION = "Cibubur-SayuranPagi";
+const char* NODE_TYPE = "Penyemaian";
+const char* NODE_ID = "1a";
+const char* NODE_CODENAME = "cibubur-sayuranpagi_penyemaian_1a";
+const char* CURRENT_VERSION = "1.0.0";
+
+// TLS Cert
+const char* ca_cert = R"EOF(
+-----BEGIN CERTIFICATE-----
+-----END CERTIFICATE-----
+)EOF";
+
+WiFiClientSecure secureClient;
+PubSubClient client(secureClient);
+
+void publishOtaLog(const char* message, JsonObject data = JsonObject()) {
+  StaticJsonDocument<1024> doc;
+  String macSuffix = WiFi.macAddress();
+  macSuffix.replace(":", "");
+
+  doc["timestamp"] = millis();
+  doc["type"] = "ota";
+  doc["message"] = message;
+  doc["node_location"] = NODE_LOCATION;
+  doc["node_type"] = NODE_TYPE;
+  doc["node_codename"] = NODE_CODENAME;
+  doc["node_mac"] = macSuffix;
+  doc["firmware_version"] = CURRENT_VERSION;
+  if (!data.isNull()) doc["data"] = data;
+
+  char buffer[1024];
+  size_t len = serializeJson(doc, buffer);
+  Serial.println(buffer);
+
+  if (!client.connected()) {
+    reconnectMQTT();
+  }
+
+  if (!client.publish(topic_log, buffer, len)) {
+    Serial.println("MQTT publish failed, retrying...");
+    reconnectMQTT();
+    client.publish(topic_log, buffer, len);
+  }
+
+  client.loop();
+  delay(100);
+}
+
+
+void connectToWiFi() {
+  for (int i = 0; i < MAX_SSID; i++) {
+    WiFi.begin(ssidList[i], passList[i]);
+    Serial.printf("Trying WiFi: %s\n", ssidList[i]);
+    for (int j = 0; j < 10; j++) {
+      if (WiFi.status() == WL_CONNECTED) {
+        Serial.println("WiFi connected");
+        secureClient.setCACert(ca_cert);
+        return;
+      }
+      delay(500);
+    }
+  }
+  Serial.println("WiFi failed, restarting...");
+  delay(3000);
+  ESP.restart();
+}
+
+void reconnectMQTT() {
+  secureClient.setCACert(ca_cert);
+  while (!client.connected()) {
+    String macSuffix = WiFi.macAddress();
+    macSuffix.replace(":", "");
+    String clientId = "ESP32_" + String(NODE_CODENAME) + "_" + macSuffix;
+
+    if (client.connect(clientId.c_str(), "username", "password")) {
+      client.subscribe(topic_ota);
+      Serial.println("MQTT TLS+Auth connected");
+    } else {
+      Serial.println("MQTT connection failed");
+      delay(3000);
+    }
+  }
+}
+
+void performOTAUpdate(String firmwareURL) {
+  HTTPClient http;
+  WiFiClientSecure* secureClient = new WiFiClientSecure();
+  secureClient->setInsecure(); // Or use proper root CA if available
+
+  publishOtaLog("OTA update started");
+
+  http.begin(*secureClient, firmwareURL);
+  http.addHeader("User-Agent", "ESP32");
+  int httpCode = http.GET();
+
+  // Handle redirect (302 or 303)
+  if (httpCode == 302 || httpCode == 303) {
+    String redirectURL = http.getLocation();
+    Serial.printf("Redirected to: %s\n", redirectURL.c_str());
+    http.end();
+
+    http.begin(*secureClient, redirectURL);
+    http.addHeader("User-Agent", "ESP32");
+    httpCode = http.GET();
+  }
+
+  // Check HTTP status
+  if (httpCode != HTTP_CODE_OK) {
+    StaticJsonDocument<64> errorDoc;
+    errorDoc["http_code"] = httpCode;
+    publishOtaLog("Failed to download firmware (HTTP code)", errorDoc.as<JsonObject>());
+    http.end();
+    delete secureClient;
+    return;
+  }
+
+  int contentLength = http.getSize();
+  if (contentLength <= 0) {
+    publishOtaLog("Invalid content length!");
+    http.end();
+    delete secureClient;
+    return;
+  }
+
+  StaticJsonDocument<64> sizeDoc;
+  sizeDoc["size_kb"] = contentLength / 1024.0;
+  publishOtaLog("Firmware size OK", sizeDoc.as<JsonObject>());
+
+  if (!Update.begin(contentLength)) {
+    publishOtaLog("Not enough space for OTA update!");
+    http.end();
+    delete secureClient;
+    return;
+  }
+
+  WiFiClient* stream = http.getStreamPtr();
+  unsigned long startTime = millis();
+  size_t written = Update.writeStream(*stream);
+  unsigned long endTime = millis();
+
+  float durationSec = (endTime - startTime) / 1000.0;
+  float speedKBps = (written / 1024.0) / durationSec;
+
+  // Separate log entries for each metric
+  StaticJsonDocument<64> doc;
+
+  doc["bytes"] = written;
+  publishOtaLog("Firmware bytes written", doc.as<JsonObject>());
+
+  doc.clear();
+  doc["seconds"] = durationSec;
+  publishOtaLog("Download time (s)", doc.as<JsonObject>());
+
+  doc.clear();
+  doc["speed_kbps"] = speedKBps;
+  publishOtaLog("Download speed (kB/s)", doc.as<JsonObject>());
+
+  // Flush logs before flashing
+  for (int i = 0; i < 5; i++) {
+    client.loop();
+    delay(100);
+  }
+
+  if (written != contentLength) {
+    StaticJsonDocument<64> mismatch;
+    mismatch["written"] = written;
+    mismatch["expected"] = contentLength;
+    publishOtaLog("Download mismatch", mismatch.as<JsonObject>());
+    http.end();
+    return;
+  }
+
+  publishOtaLog("Download complete");
+  if (!Update.end()) {
+    publishOtaLog("Flash failed");
+    http.end();
+    return;
+  }
+
+  publishOtaLog("OTA update complete");
+  delay(200);    // allow message to go through
+  client.disconnect();
+  delay(1000);
+  ESP.restart();
+}
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  String msg;
+  for (int i = 0; i < length; i++) msg += (char)payload[i];
+
+  if (String(topic) == topic_ota) {
+    StaticJsonDocument<512> doc;
+    DeserializationError error = deserializeJson(doc, msg);
+
+    if (error || !doc.containsKey("node_codename") || !doc.containsKey("firmware_url")) {
+      Serial.println("Invalid OTA message");
+      return;
+    }
+
+    const char* targetNodeName = doc["node_codename"];
+    const char* firmwareUrl = doc["firmware_url"];
+    const char* targetVersion = doc["firmware_version"];
+
+    if (strcmp(targetNodeName, NODE_CODENAME) != 0) {
+      Serial.println("OTA not for this node");
+      return;
+    }
+
+    if (targetVersion && strcmp(targetVersion, CURRENT_VERSION) == 0) {
+      publishOtaLog("Firmware already up to date");
+      return;
+    }
+
+    performOTAUpdate(String(firmwareUrl));
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  dht.begin();
+  connectToWiFi();
+  client.setServer(mqtt_server, mqtt_port);
+  client.setCallback(callback);
+  reconnectMQTT();
+  Serial.println("Node booted and ready");
+}
+
+void loop() {
+  if (!client.connected()) reconnectMQTT();
+  client.loop();
+
+  static unsigned long lastSensorTime = 0;
+  if (millis() - lastSensorTime > 5000) {
+    lastSensorTime = millis();
+
+    float temp = dht.readTemperature();
+    float hum = dht.readHumidity();
+
+    if (!isnan(temp) && !isnan(hum)) {
+      StaticJsonDocument<256> data;
+      data["temperature"] = temp;
+      data["humidity"] = hum;
+      data["node_codename"] = NODE_CODENAME;
+
+      char payload[256];
+      serializeJson(data, payload);
+      client.publish(topic_sensor, payload);
+      Serial.println("Sensor data sent");
+      Serial.println(payload);
+    } else {
+      Serial.println("DHT read failed");
+    }
+  }
+}
