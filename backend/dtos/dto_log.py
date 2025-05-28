@@ -7,9 +7,14 @@ from models.model_log import Log
 class InputLog(BaseModel):
     type: str = Field(min_length=1, max_length=255)
     message: str = Field(min_length=1, max_length=255)
-    node_name: str = Field(min_length=1, max_length=255)
+    node_location: str = Field(min_length=1, max_length=255)
+    node_type: str = Field(min_length=1, max_length=255)
+    node_codename: str = Field(min_length=1, max_length=255)
     firmware_version: str = Field(min_length=1, max_length=255)
+    node_mac: Optional[str] = Field(default=None, min_length=1, max_length=255)
     data: Optional[Dict[str, Any]] = None
+    download_status: str = Field(default="pending", min_length=1, max_length=255)
+    ota_status: str = Field(default="pending", min_length=1, max_length=255)
 
     class Config:
         json_schema_extra ={
@@ -23,12 +28,14 @@ class InputLog(BaseModel):
         }
 
 class FilterOption(TypedDict):
-    node_name: List[str]
-    firmware_version: List[str]
+    node_location: List[str]
+    node_type: List[str]
+    ota_status: List[str]
 
 class OutputLogPagination(BasePage):
     filter_options: FilterOption = Field(default_factory=lambda:{
-        "node_name": [], 
-        "firmware_version": []
+        "node_location": [], 
+        "node_type": [],
+        "ota_status": []
         })
     log_data: List[Log] = Field(default_factory=list)

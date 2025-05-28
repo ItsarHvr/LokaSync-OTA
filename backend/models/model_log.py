@@ -6,9 +6,12 @@ class Log(BaseModel):
     _id:str
     type:str
     message:str
-    node_name:str
+    node_location:str
+    node_type:str
+    node_codename:str
     timestamp:datetime
     firmware_version:str
+    node_mac:Optional[str] = None
     data: Optional[Dict[str, Any]] = None
 
     @field_validator("timestamp", mode="before")

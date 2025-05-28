@@ -11,17 +11,20 @@ class LogRepository:
 
     async def get_list_log(
         self,
-        node_name: Optional[str] = None,
-        firmware_version: Optional[str] = None,
+        node_location: Optional[str] = None,
+        node_type: Optional[str] = None,
+        ota_status: Optional[str] = None,
         page: int = 1,
         per_page: int = 10
     ) -> List[Log]:
         # base query
         match_query = {}
-        if node_name is not None:
-            match_query["node_name"] = node_name
-        if firmware_version is not None:
-            match_query["firmware_version"] = firmware_version
+        if node_location is not None:
+            match_query["node_location"] = node_location
+        if node_type is not None:
+            match_query["node_type"] = node_type
+        if ota_status is not None:
+            match_query["ota_status"] = ota_status
 
         # MongoDB aggregation pipline
         pipeline = [
@@ -43,24 +46,31 @@ class LogRepository:
                 _id=str(doc["_id"]),
                 type=doc["type"],
                 message=doc["message"],
+                node_location=doc["node_location"],
+                node_type=doc["node_type"],
                 node_name=doc["node_name"],
                 timestamp=doc["timestamp"],
                 firmware_version=doc["firmware_version"],
-                data=doc.get("data")
+                data=doc.get("data"),
+                download_status=doc["download_status"],
+                ota_status=doc["ota_status"]
             )
             for doc in docs
         ]
     
     async def count_list_log(
             self,
-            node_name: Optional[str] = None,
-            firmware_version: Optional[str] = None,
+            node_location: Optional[str] = None,
+            node_type: Optional[str] = None,
+            ota_status: Optional[str] = None
     ) -> int:
         query = {}
-        if node_name is not None:
-            query["node_name"] = node_name
-        if firmware_version is not None:
-            query["firmware_version"] = firmware_version
+        if node_location is not None:
+            query["node_name"] = node_location
+        if node_type is not None:
+            query["node_type"] = node_type
+        if ota_status is not None:
+            query["ota_status"] = ota_status
 
         # MongoDB aggregation pipline
         pipeline = [
