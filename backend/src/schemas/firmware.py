@@ -1,151 +1,148 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List, TypedDict
-from fastapi import UploadFile, File
+from pydantic import BaseModel
+from typing import Optional, List
+from fastapi import UploadFile, File, Form
 
-from schemas.common import BasePagination, BaseFilterOptions
+from schemas.common import (
+    BaseAPIResponse,
+    BasePagination,
+    BaseFilterOptions
+)
 from models.firmware import FirmwareModel
-from enums.common import NodeLocation
+from cores.config import env
 
 
-# /api/v1/firmware/add
-class InputFirmware(BaseModel):
-    firmware_description: Optional[str] = Field(min_length=1, max_length=255)
-    firmware_file: UploadFile = File(
-        media_type="application/octet-stream",
-        max_length=2 * 1024 * 1024,  # 2 MB max file size
-        description="Firmware file to be uploaded"
-    )
-    firmware_version: str = Field(min_length=1, max_length=8, pattern=r'^\d+\.\d+\.\d+$')
-    firmware_url: Optional[str] = Field(min_length=1, pattern=r'^(http|https)://.*$')
-    node_id: int = Field(ge=1)
-    node_location: NodeLocation = Field(min_length=1, max_length=255)
-
-
-    class Config:
-        json_schema_extra ={
-            "example": {
-                "firmware_description": "This is a firmware description.",
-                "firmware_file": {
-                    "filename": "firmware.ino.bin",
-                    "content_type": "application/octet-stream",
-                    "size": 2 * 1024 * 1024  # 2 MB
-                },
-                "firmware_version": "1.0.0",
-                "firmware_url": "https://example.com/firmware/firmware.ino.bin",
-                "node_id": 1,
-                "node_location": "Depok Greenhouse"
-            }
-        }
-
-
-# /api/v1/firmware/update/{node_name}
-class UpdateFirmware(BaseModel):
-    firmware_description: Optional[str] = Field(min_length=1, max_length=255)
-    firmware_file: UploadFile = File(
-        media_type="application/octet-stream",
-        max_length=2 * 1024 * 1024,  # 2 MB max file size
-        description="Firmware file to be uploaded"
-    )
-    firmware_version: str = Field(min_length=1, max_length=8, pattern=r'^\d+\.\d+\.\d+$')
-    firmware_url: Optional[str] = Field(min_length=1, pattern=r'^(http|https)://.*$')
-
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "firmware_description": "This is an updated firmware description.",
-                "firmware_file": {
-                    "filename": "updated_firmware.ino.bin",
-                    "content_type": "application/octet-stream",
-                    "size": 2 * 1024 * 1024  # 2 MB
-                },
-                "firmware_version": "1.0.1",
-                "firmware_url": "https://example.com/firmware/updated_firmware.ino.bin"
-            }
-        }
-
-
-# /api/v1/firmware/update/description/{node_name}
-class UpdateFirmwareDescription(BaseModel):
-    firmware_description: str = Field(min_length=1, max_length=255)
+class FirmwareSchema(BaseModel):
+    """ Schema for add and update firmware version. """
     
+    firmware_description: Optional[str] = Form(
+        default=None,
+        max_length=255,
+        description="Description of the firmware"
+    )
+    firmware_file: Optional[UploadFile] = File(
+        media_type='application/octet-stream',
+        max_length=env.UPLOAD_FILE_MAX_SIZE_MB * 1024 * 1024,
+        description="Firmware file (only .bin supported)"
+    )
+    firmware_version: Optional[str] = Form(
+        pattern=r'^\d+\.\d+\.\d+$',
+        min_length=5,
+        max_length=10,
+        description="Firmware version in format x.y.z"
+    )
+    firmware_url: Optional[str] = Form(
+        default=None,
+        pattern=r'^https?://.*$',
+        description="URL to download the firmware file"
+    )
+    greeenhouse_location: Optional[str] = Form(
+        min_length=3,
+        description="Location of the node that this firmware is associated with"
+    )
+    greenhouse_name: str = Form(
+        min_length=3,
+        description="Specific location within the greenhouse that this firmware is associated with"
+    )
+    room_name: str = Form(
+        min_length=3,
+        description="Name of the room within the greenhouse location"
+    )
+    room_id: str = Form(
+        min_length=2,
+        description="Unique identifier for the room within the greenhouse location"
+    )
+
+
+class InputFirmwareVersionSchema(BaseModel):
+    """ Schema for updating firmware version. """
+    
+    firmware_description: Optional[str] = Form(
+        default=None,
+        max_length=255,
+        description="Description of the firmware"
+    )
+    firmware_file: UploadFile = File(
+        ...,
+        media_type='application/octet-stream',
+        max_length=env.UPLOAD_FILE_MAX_SIZE_MB * 1024 * 1024,
+        description="Firmware binary file (.bin)"
+    )
+    firmware_version: str = Form(
+        ...,
+        pattern=r'^\d+\.\d+\.\d+$',
+        max_length=10,
+        description="Firmware version in format x.y.z"
+    )
+
+
+# class UpdateFirmwareDescriptionSchema(BaseModel):
+#     """Schema for updating firmware description only."""
+#     firmware_description: str = Form(..., min_length=3, max_length=255)
+
+
+class ResponseFirmware(BaseAPIResponse, BasePagination):
+    """ Paginated firmware response schema. """
+    
+    filter_options: BaseFilterOptions
+    firmware_data: List[FirmwareModel]
+
+
     class Config:
         json_schema_extra = {
             "example": {
-                "firmware_description": "This is an updated firmware description."
+                "message": "Success",
+                "status_code": 200,
+                "page": 1,
+                "page_size": 10,
+                "total_data": 0,
+                "total_page": 1,
+                "filter_options": {
+                    "greeenhouse_locations": [
+                        "Kebun Cibubur",
+                        "Kebun Bogor"
+                    ],
+                    "greenhouse_names": [
+                        "Sayuran Pagi",
+                        "Buah Malam"
+                    ],
+                    "room_names": [
+                        "Penyemaian",
+                        "Pembibitan"
+                    ]
+                },
+                "firmware_data": [
+                    {
+                        "id": "123456789",
+                        "created_at": "2023-10-01T12:00:00Z",
+                        "latest_updated": "2023-10-01T12:00:00Z",
+                        "firmware_description": "Initial firmware version",
+                        "firmware_version": "1.0.0",
+                        "firmware_url": "http://example.com/firmware.ino.bin",
+                        "greeenhouse_location": "Kebun Cibubur",
+                        "greenhouse_name": "Sayuran Pagi",
+                        "room_name": "Penyemaian",
+                        "room_id": "1a",
+                        "node_id": "kebun-cibubur_sarapan-pagi_penyemaian_room-1a"
+                    }
+                ]
             }
         }
 
 
-# /api/v1/firmware
-class OutputFirmwarePagination(BasePagination):
-    filter_options: List[BaseFilterOptions] = Field(
-        default_factory=lambda: {
-            "node_id": [],
-            "node_location": [l.value for l in NodeLocation],
+class ResponseFirmwareVersion(BaseAPIResponse):
+    """ Firmware versions by node name response schema. """
+    list_firmware_version: List[str]
+
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "message": "Success",
+                "status_code": 200,
+                "list_firmware_version": [
+                    "1.0.0",
+                    "1.0.1",
+                    "1.0.2"
+                ]
+            }
         }
-    )
-    firmware_data: List[FirmwareModel] = Field(default_factory=list)
-
-
-# /api/v1/firmware/{node_name}
-class OuputFirmwareByNodeName(BaseModel):
-    list_firmware_version: List[str] = Field(default_factory=list)
-
-
-# class UploadFirmwareForm:
-#     def __init__(
-#         self,
-#         firmware_version: str = Form(...),
-#         node_location : str = Form(...),
-#         node_id: int = Form(...),
-#         firmware_description : str = Form(...),
-#         sensor_type : str = Form(...),
-#         firmware_file : UploadFile = File(...)
-#     ):
-#         self.firmware_version = firmware_version
-#         self.node_id = node_id
-#         self.node_location = node_location
-#         self.firmware_description = firmware_description
-#         self.firmware_file = firmware_file
-#         self.sensor_type = sensor_type
-        
-#     def to_dto(self, firmware_url: str) -> InputFirmware:
-#         return InputFirmware(
-#             firmware_description=self.firmware_description,
-#             firmware_version=self.firmware_version,
-#             firmware_url=firmware_url,
-#             node_id=self.node_id,
-#             node_location=self.node_location,
-#             sensor_type=self.sensor_type
-#         )
-        
-# class UpdateFirmwareForm:
-#     def __init__(
-#         self,
-#         firmware_version: str = Form(...),
-#         firmware_file : UploadFile = File(...),
-#         firmware_description : Optional[str] = Form(None),
-#     ):
-#         self.firmware_version = firmware_version
-#         self.firmware_file = firmware_file
-#         self.firmware_description = firmware_description
-        
-#     def to_dto(self, firmware_url: str) -> InputFirmware:
-#         return InputFirmware(
-#             firmware_version=self.firmware_version,
-#             firmware_url=firmware_url,
-#             firmware_description=self.firmware_description,
-#         )
-
-# class UpdateFirmwareDescriptionForm:
-#     def __init__(
-#         self,
-#         firmware_description: str = Form(...),
-#     ):
-#         self.firmware_description = firmware_description
-
-#     def to_dto(self) -> InputFirmware:
-#         return InputFirmware(
-#             firmware_description=self.firmware_description
-#         )

@@ -1,16 +1,22 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError, HTTPException
 from contextlib import asynccontextmanager
 import asyncio
 
 from cores.config import env
 from cores.database import start_mongodb_connection, stop_mongodb_connection
+from cores.exceptions import validation_exception_handler, http_exception_handler
+
 from routers.v1.index import router_index
-from routers.v1.health_check import router_health_check
-from routers.v1.firmware import router_firmware
+from routers.v1.health import router_health
+from routers.v1.node import node_router
 # from routers.v1.log import router_log
+# from routers.v1.monitoring import router_monitoring
+
 from middlewares.request_timeout import RequestTimeoutMiddleware
 from middlewares.rate_limiter import init_rate_limiter
+
 from externals.firebase.client import init_firebase_app
 from externals.gdrive.client import check_google_drive_credentials
 from externals.mqtts.run import start_mqtt_service, stop_mqtt_service
@@ -103,9 +109,13 @@ app.add_middleware(
 app.add_middleware(RequestTimeoutMiddleware, timeout_seconds=env.MIDDLEWARE_REQUEST_TIMEOUT_SECOND)
 init_rate_limiter(app)
 
+# Register custom exception handlers
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(HTTPException, http_exception_handler)
+
 ##### Add routes #####
 app.include_router(router_index)
-app.include_router(router_health_check, tags=["Health Check"])
-app.include_router(router_firmware, prefix=f"{API_VERSION}", tags=["Firmware"])
-# app.include_router(router_monitoring, prefix=f"{API_VERSION}", tags=["Monitoring"])
-# app.include_router(router_log, prefix=f"{API_VERSION}", tags=["Log"])
+app.include_router(router_health, tags=["Health Check"])
+app.include_router(node_router, prefix=f"{API_VERSION}/node", tags=["Node Management"])
+# app.include_router(router_monitoring, prefix=f"{API_VERSION}/monitoring", tags=["Monitoring"])
+# app.include_router(router_log, prefix=f"{API_VERSION}/log", tags=["Log"])

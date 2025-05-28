@@ -15,13 +15,17 @@ class Environment(BaseSettings):
     APP_VERSION: str = getenv("APP_VERSION", "1")
     APP_NAME: str = getenv("APP_NAME", "LokaSync REST API")
     APP_DESCRIPTION: str = getenv("APP_DESCRIPTION", "LokaSync REST API for updating ESP firmware devices via Over-The-Air")
+
+    # Upload file settings
+    UPLOAD_FILE_MAX_SIZE_MB: int = int(getenv("UPLOAD_FILE_MAX_SIZE_MB", 2))
     
     # MongoDB settings
-    MONGO_DATABASE_NAME: str = getenv("MONGO_DATABASE_NAME", "lokasync_db")
+    MONGO_DATABASE_NAME: str = getenv("MONGO_DATABASE_NAME", "example_db")
     MONGO_CONNECTION_URL: str = getenv("MONGO_CONNECTION_URL", "mongodb://localhost:27017/")
 
     # MQTT settings
     MQTT_BROKER_URL: str = getenv("MQTT_BROKER_URL", "mqtt://localhost:1883")
+    MQTT_BROKER_VERSION: str = getenv("MQTT_BROKER_VERSION", "3.1")
     MQTT_BROKER_KEEPALIVE: int = int(getenv("MQTT_BROKER_KEEPALIVE", 60))
     MQTT_BROKER_PORT: int = int(getenv("MQTT_BROKER_PORT", 1883))
     MQTT_BROKER_USERNAME: str = getenv("MQTT_BROKER_USERNAME", None)

@@ -25,10 +25,10 @@ def get_client_ip(request: Request) -> str:
 limiter = Limiter(
     key_func=get_client_ip,
     storage_uri="memory://",
-    default_limits=[
-        f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_MINUTE}/minute",
-        f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_HOUR}/hour"
-    ]
+    # default_limits=[
+    #     f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_MINUTE}/minute",
+    #     f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_HOUR}/hour"
+    # ]
 )
 
 def init_rate_limiter(app: FastAPI):

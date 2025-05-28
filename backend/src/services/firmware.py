@@ -1,18 +1,17 @@
+import asyncio
 import os
-from fastapi import Depends, UploadFile
-from fastapi.exceptions import HTTPException
-from typing import Optional
+from fastapi import Depends, HTTPException, status
+from typing import Optional, Dict, Any
 from datetime import datetime, timezone
 from math import ceil
 
 from cores.config import env
 from cores.dependencies import get_current_user
-from externals.gdrive.client import SERVICE_ACCOUNT_FILE, SCOPES
 from externals.gdrive.uploader import upload_file
 from repositories.firmware import FirmwareRepository
 from schemas.firmware import (
-    InputFirmware,
-    UpdateFirmware,
+    InputNewNode,
+    UpdateFirmwareVersion,
     UpdateFirmwareDescription,
     OutputFirmwarePagination,
     OuputFirmwareByNodeName
@@ -23,7 +22,6 @@ class ServiceFirmware:
     def __init__(self, firmware_repository: FirmwareRepository = Depends()):
         self.firmware_repository = firmware_repository
         self.gdrive_folder_id = env.GOOGLE_DRIVE_FOLDER_ID
-        # print("DEBUG folder_id:", repr(self.gdrive_folder_id))
 
     async def get_list_firmware(
         self,
@@ -31,34 +29,19 @@ class ServiceFirmware:
         node_location: Optional[str] = None,
         page: int = 1,
         page_size: int = 10,
-        user: dict = Depends(get_current_user)
+        user: Dict[str, Any] = Depends(get_current_user)
     ) -> OutputFirmwarePagination:
+        """Get paginated firmware list with filters."""
         try:
-            # 1. Check user authentication
-            if not user:
-                raise HTTPException(status_code=401, detail="Unauthorized access")
-            
-            # 2. Data firmware
-            list_firmware = await self.firmware_repository.get_list_firmware(
-                page=page,
-                page_size=page_size,
-                node_id=node_id,
-                node_location=node_location,
+            # Get firmware data and total count concurrently
+            list_firmware, total_data, filter_options = await asyncio.gather(
+                self.firmware_repository.get_list_firmware(page, page_size, node_id, node_location),
+                self.firmware_repository.count_list_firmware(node_id, node_location),
+                self.firmware_repository.get_filter_options()
             )
 
-            # 3. Total data
-            total_data = await self.firmware_repository.count_list_firmware(
-                node_id=node_id,
-                node_location=node_location,
-            )
-
-            # 4. Total page
             total_page = ceil(total_data / page_size) if total_data else 1
 
-            # 5. Get filter options
-            filter_options = await self.firmware_repository.get_filter_options()
-
-            # 6. Return response
             return OutputFirmwarePagination(
                 page=page,
                 page_size=page_size,
@@ -68,195 +51,186 @@ class ServiceFirmware:
                 firmware_data=list_firmware,
             )
         except Exception as e:
-            return HTTPException(status_code=500, detail=f"Failed to get firmware list")
+            raise HTTPException(status_code=500, detail="Failed to get firmware list")
 
     async def get_list_firmware_version(
         self,
         node_name: str,
-        user: dict = Depends(get_current_user)
+        user: Dict[str, Any] = Depends(get_current_user)
     ) -> OuputFirmwareByNodeName:
-        """Return:
-        - Only return the firmware version list associated with the node name.
-        """
+        """Get firmware version list by node name."""
         try:
-            # 1. Check user authentication
-            if not user:
-                raise HTTPException(status_code=401, detail="Unauthorized access") 
+            list_firmware_version = await self.firmware_repository.get_list_firmware_version(node_name)
+            # Extract just the version strings
+            versions = [fw.firmware_version for fw in list_firmware_version]
             
-            # 2. Get list firmware version by node name
-            list_firmware_version = await self.firmware_repository.get_list_firmware_version(
-                node_name
-            )
-
-            return OuputFirmwareByNodeName(list_firmware_version=list_firmware_version)
+            return OuputFirmwareByNodeName(list_firmware_version=versions)
         except Exception as e:
-            return HTTPException(status_code=500, detail="Failed to get firmware list by node name")
+            raise HTTPException(status_code=500, detail="Failed to get firmware list by node name")
 
     async def add_new_node(
         self,
-        input_firmware: InputFirmware,
-        user: dict = Depends(get_current_user)
+        input_firmware: InputNewNode,
+        user: Dict[str, Any] = Depends(get_current_user)
     ):
-        # Stage 1: Always check user authentication
-        if not user:
-            raise HTTPException(status_code=401, detail="Unauthorized access")
-        
-        # Stage 2: Save firmware file in local folder
-        filename = input_firmware.firmware_file.filename
-        save_path = f"tmp/{filename}"
-        
-        if not os.path.exists("tmp"):
-            os.makedirs("tmp")
+        """Add new firmware node."""
+        try:
+            # Save and upload firmware file
+            firmware_url = await self._process_firmware_file(input_firmware.firmware_file)
             
-        try:
-            with open(save_path, "wb+") as f:
-                content = await input_firmware.firmware_file.read()
-                f.write(content)
+            # Prepare firmware data
+            firmware_data = self._build_firmware_data(input_firmware, firmware_url, user)
+            
+            # Insert to database
+            await self.firmware_repository.add_new_node(firmware_data)
+            
+            return {"message": "Firmware added successfully", "status_code": 201}
+            
+        except HTTPException:
+            raise
         except Exception as e:
-            return HTTPException(status_code=500, detail="Failed to save firmware file in local folder")
-        
-        # Stage 3: Upload firmware file to Google drive
-        try:
-            firmware_url = upload_file(save_path, filename, self.gdrive_folder_id)
-        except Exception as e:
-            return HTTPException(status_code=500, detail="Failed to upload firmware file to Google Drive")
-        
-        # Stage 4: Prepare firmware data
-        firmware_data = {
-            "firmware_description": input_firmware.firmware_description,
-            "firmware_version": input_firmware.firmware_version,
-            "firmware_url": firmware_url,
-            "node_id": input_firmware.node_id,
-            "node_location": input_firmware.node_location,
-            "node_name": input_firmware.node_name,
-            "latest_updated": datetime.now(timezone.tzname(env.TIMEZONE))
-        }
+            raise HTTPException(status_code=500, detail="Failed to add new firmware")
 
-        # Stage 5: Insert firmware data to MongoDB
-        try:
-            await self.firmware_repository.add_new_node(firmware_data, user)
-        except Exception as e:
-            return HTTPException(f"Failed to insert firmware data")
-        
-        # #Publish ke MQTT
-        # try:
-        #     topic = "LokaSync/CloudOTA/Firmware"
-        #     payload = json.dumps({
-        #         "node_name":node_name,
-        #         "firmware_version": firmware_version,
-        #         "url": firmware_url
-        #     })
-        #     publish.single(topic, payload, hostname=MQTT_ADDRESS)
-        # except Exception as e:
-        #     raise Exception(f"Gagal Mengirim ke MQTT: {str(e)}")
-        
     async def update_firmware_version(
         self,
         node_name: str,
-        update_firmware: UpdateFirmware,
-        user: dict = Depends(get_current_user)
+        update_firmware: UpdateFirmwareVersion,
+        user: Dict[str, Any] = Depends(get_current_user)
     ):
-        # Stage 1: Always check user authentication
-        if not user:
-            raise HTTPException(status_code=401, detail="Unauthorized access")
-        
-        # Stage 2: Save firmware file in local folder
-        filename = update_firmware.firmware_file.filename
-        save_path = f"tmp/{filename}"
-        
-        if not os.path.exists("tmp"):
-            os.makedirs("tmp")
-        
+        """Update firmware version for a node."""
         try:
-            with open(save_path, "wb+") as f:
-                content = await update_firmware.firmware_file.read()
-                f.write(content)
+            # Process firmware file
+            firmware_url = await self._process_firmware_file(update_firmware.firmware_file)
+            
+            # Update firmware
+            update_data = {
+                "firmware_description": getattr(update_firmware, "firmware_description", ""),
+                "firmware_version": update_firmware.firmware_version,
+                "firmware_url": firmware_url,
+            }
+            
+            result = await self.firmware_repository.update_firmware_version(node_name, update_data)
+            if not result:
+                raise HTTPException(status_code=404, detail="Node not found")
+            
+            return {"message": "Firmware version updated successfully", "status_code": 200}
+            
+        except HTTPException:
+            raise
         except Exception as e:
-            return HTTPException(f"Failed to save firmware file in local folder")
-        
-        # Stage 3: Upload firmware file to Google drive
-        try:
-            firmware_url = upload_file(save_path, filename, self.gdrive_folder_id)
-        except Exception as e:
-            return HTTPException(f"Failed to upload firmware file to Google Drive")
-        
-        # Stage 4: Update firmware version in MongoDB
-        try:
-            return await self.firmware_repository.update_firmware_version(
-                node_name,
-                {
-                    "firmware_description": getattr(update_firmware, "firmware_description", ""),
-                    "firmware_version": update_firmware.firmware_version,
-                    "firmware_url": firmware_url,
-                }
-            )
-        except Exception as e:
-            return HTTPException("Failed to update firmware version")
-        
-        # try:
-        #     topic = "LokaSync/CloudOTA/Firmware"
-        #     payload = json.dumps({
-        #         "node_name": node_name,
-        #         "url": firmware_url,
-        #         "firmware_version": form.firmware_version
-        #     })
-        #     publish.single(topic, payload, hostname=MQTT_ADDRESS)
-        # except Exception as e:
-        #     raise Exception(f"Gagal Mengirim ke MQTT: {str(e)}")
-        
-        # return {"message": "Update firmware successfully."}
-    
+            raise HTTPException(status_code=500, detail="Failed to update firmware version")
+
     async def update_firmware_description(
         self,
         node_name: str,
         firmware_version: str,
         update_firmware: UpdateFirmwareDescription,
-        user: dict = Depends(get_current_user)
+        user: Dict[str, Any] = Depends(get_current_user)
     ):
+        """Update firmware description."""
         try:
-            # Stage 1: Always check user authentication
-            if not user:
-                raise HTTPException(status_code=401, detail="Unauthorized access")
-            
-            # Stage 2: Update firmware description in MongoDB
-            return await self.firmware_repository.update_firmware_description(
+            success = await self.firmware_repository.update_firmware_description(
                 node_name,
                 firmware_version,
-                { "firmware_description": update_firmware.firmware_description }
+                {"firmware_description": update_firmware.firmware_description}
             )
+            
+            if not success:
+                raise HTTPException(status_code=404, detail="Firmware version not found")
+            
+            return {"message": "Firmware description updated successfully", "status_code": 200}
+            
+        except HTTPException:
+            raise
         except Exception as e:
-            return HTTPException(status_code=500, detail="Failed to update firmware description")
+            raise HTTPException(status_code=500, detail="Failed to update firmware description")
 
     async def delete_firmware_version(
         self,
         node_name: str,
         firmware_version: str,
-        user: dict = Depends(get_current_user)
+        user: Dict[str, Any] = Depends(get_current_user)
     ):
+        """Delete specific firmware version."""
         try:
-            # Stage 1: Always check user authentication
-            if not user:
-                raise HTTPException(status_code=401, detail="Unauthorized access")
-
-            # Stage 2: Delete specific firmware version
-            return await self.firmware_repository.delete_firmware_verison(
-                node_name,
-                firmware_version
-            )
+            result = await self.firmware_repository.delete_firmware_version(node_name, firmware_version)
+            
+            if result.deleted_count == 0:
+                raise HTTPException(status_code=404, detail="Firmware version not found")
+            
+            return {"message": "Firmware version deleted successfully", "status_code": 200}
+            
+        except HTTPException:
+            raise
         except Exception as e:
-            return HTTPException(status_code=500, detail="Failed to delete firmware by version")
+            raise HTTPException(status_code=500, detail="Failed to delete firmware version")
 
     async def delete_all_version(
         self,
         node_name: str,
-        user: dict= Depends(get_current_user)
+        user: Dict[str, Any] = Depends(get_current_user)
     ):
+        """Delete all firmware versions for a node."""
         try:
-            # Stage 1: Always check user authentication
-            if not user:
-                raise HTTPException(status_code=401, detail="Unauthorized access")
-
-            # Stage 2: Delete all firmware versions by node name
-            return await self.firmware_repository.delete_all_version(node_name)
+            result = await self.firmware_repository.delete_all_version(node_name)
+            
+            if result.deleted_count == 0:
+                raise HTTPException(status_code=404, detail="No firmware found for this node")
+            
+            return {"message": f"All firmware versions for {node_name} deleted successfully", "status_code": 200}
+            
+        except HTTPException:
+            raise
         except Exception as e:
-            return HTTPException(status_code=500, detail="Failed to delete all firmwares by node name")
+            raise HTTPException(status_code=500, detail="Failed to delete firmware versions")
+
+    # Helper methods
+    async def _process_firmware_file(self, firmware_file) -> str:
+        """Process and upload firmware file."""
+        if not firmware_file.filename:
+            raise HTTPException(status_code=400, detail="No file provided")
+        
+        filename = firmware_file.filename
+        save_path = f"tmp/{filename}"
+        
+        # Create temp directory if it doesn't exist
+        os.makedirs("tmp", exist_ok=True)
+        
+        try:
+            # Save file temporarily
+            with open(save_path, "wb") as f:
+                content = await firmware_file.read()
+                f.write(content)
+            
+            # Upload to Google Drive
+            firmware_url = upload_file(save_path, filename, self.gdrive_folder_id)
+            
+            # Clean up temp file
+            try:
+                os.remove(save_path)
+            except OSError:
+                pass  # File might already be deleted
+                
+            return firmware_url
+            
+        except Exception as e:
+            # Clean up temp file on error
+            try:
+                os.remove(save_path)
+            except OSError:
+                pass
+            raise HTTPException(status_code=500, detail=f"Failed to process firmware file: {str(e)}")
+
+    def _build_firmware_data(self, input_firmware: InputNewNode, firmware_url: str, user: Dict[str, Any]) -> dict:
+        """Build firmware data dictionary."""
+        return {
+            "firmware_description": input_firmware.firmware_description or "",
+            "firmware_version": input_firmware.firmware_version,
+            "firmware_url": firmware_url,
+            "node_id": input_firmware.node_id,
+            "node_location": input_firmware.node_location.value if hasattr(input_firmware.node_location, 'value') else input_firmware.node_location,
+            "node_name": getattr(input_firmware, 'node_name', f"{input_firmware.node_location.lower()}-node{input_firmware.node_id}"),
+            "created_by": user.get("uid", "unknown"),
+            "created_by_email": user.get("email", "unknown"),
+            "latest_updated": datetime.now(timezone.tzname(env.TIMEZONE))
+        }

@@ -1,7 +1,20 @@
 from pydantic import BaseModel
 from typing import List
 
-from enums.common import NodeLocation
+
+class BaseAPIResponse(BaseModel):
+    """ Base class for API responses. """
+    message: str
+    status_code: int
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status_code": 200,
+                "message": "Request was successful"
+            }
+        }
+
 
 class BasePagination(BaseModel):
     """ Base class for pagination. """
@@ -15,21 +28,21 @@ class BasePagination(BaseModel):
             "example": {
                 "page": 1,
                 "page_size": 10,
-                "total_data": 100,
-                "total_page": 10
+                "total_data": 0,
+                "total_page": 1
             }
         }
 
 
 class BaseFilterOptions(BaseModel):
     """ Base class for filter options. """
-    node_id: List[int] = []
-    node_location: List[str] = [loc.value for loc in NodeLocation]
+    node_location: List[str] = []
+    node_type: List[str] = []
 
     class Config:
         json_schema_extra = {
             "example": {
-                "node_id": [i for i in range(1, 11)],
-                "node_location": [loc.value for loc in NodeLocation]
+                "node_location": ["Kebun Cibubur", "Kebun Bogor"],
+                "node_type": ["Sayuran Pagi", "Buah Malam"],
             }
         }

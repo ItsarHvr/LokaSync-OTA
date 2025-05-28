@@ -1,46 +1,78 @@
 from pydantic import BaseModel, Field
 from typing import Optional
-from datetime import datetime, timezone
+from datetime import datetime
+from bson import ObjectId
 
 from models.common import PyObjectId
-from cores.config import env
-from enums.common import NodeLocation
+from utils.datetime import set_default_timezone, convert_datetime_to_str
 
 
 class FirmwareModel(BaseModel):
     """
     A Pydantic model representing a firmware document in MongoDB.
 
-    Data sent from backend to database.
+        Data sent from backend to database.
+        ... means this field is required.
     """
-    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id", description="Unique identifier for the firmware document")
+    id: Optional[PyObjectId] = Field(
+        ...,
+        default_factory=ObjectId,
+        alias="_id",
+        description="Unique identifier for the firmware document"
+    )
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.tzname(env.TIMEZONE)),
+        ...,
+        default_factory=set_default_timezone,
         description="Timestamp when the firmware document was created"
     )
-    firmware_description: Optional[str] = Field(default=None, max_length=500, description="Description of the firmware")
-    firmware_version: str = Field(default="1.0.0", max_length=10, description="Version of the firmware")
-    firmware_url: str = Field(default="http://example.com/firmware.ino.bin", description="URL to download the firmware binary file")
-    latest_updated: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.tzname(env.TIMEZONE)),
+    latest_updated: Optional[datetime] = Field(
+        default_factory=set_default_timezone,
         description="Timestamp when the firmware document was last updated"
     )
-    node_id: int = Field(default=1, ge=1, description="Unique identifier for the node that this firmware is associated with")
-    node_location: str = Field(
-        default=NodeLocation.DEPOK_GREENHOUSE,
-        max_length=255,
+    firmware_description: Optional[str] = Field(
+        default=None,
+        max_length=500,
+        description="Description of the firmware"
+    )
+    firmware_version: str = Field(
+        ...,
+        max_length=11,
+        description="Version of the firmware"
+    )
+    firmware_url: str = Field(
+        ...,
+        description="URL to download the firmware binary file"
+    )
+    greenhouse_location: str = Field(
+        ...,
+        min_length=3,
         description="Location of the node that this firmware is associated with",
     )
-    node_name: str = Field(
-        default="depok-node1",
-        max_length=100,
+    greenhouse_name: str = Field(
+        ...,
+        min_length=3,
+        description="Specific location within the greenhouse that this firmware is associated with",
+    )
+    room_name: str = Field(
+        ...,
+        min_length=3,
+        description="Name of the room within the greenhouse location"
+    )
+    room_id: str = Field(
+        ...,
+        min_length=2,
+        description="Unique identifier for the room within the greenhouse location"
+    )
+    node_id: str = Field(
+        ...,
+        min_length=3,
         description="A unique name for the node that this firmware is associated with",
     )
 
 
     class Config:
         """
-        Configuration for the Pydantic model.
+        Configuration for the Firmware Model.
         
         Settings:
             validate_by_name: Allows the model to populate fields using the field's alias.
@@ -49,7 +81,10 @@ class FirmwareModel(BaseModel):
         """
         validate_by_name = True
         arbitrary_types_allowed = True
-        json_encoders = { datetime: lambda d: d.isoformat() }
+        json_encoders = {
+            ObjectId: str,
+            datetime: convert_datetime_to_str
+        }
         json_schema_extra = {
             "example": {
                 "id": "60c72b2f9b1e8b001c8e4d3a",
@@ -58,8 +93,10 @@ class FirmwareModel(BaseModel):
                 "firmware_description": "Firmware for temperature and humidity sensor",
                 "firmware_version": "1.0.0",
                 "firmware_url": "http://example.com/firmware.ino.bin",
-                "node_id": 1,
-                "node_location": NodeLocation.DEPOK_GREENHOUSE,
-                "node_name": "depok-node1"
+                "greeenhouse_location": "Kebun Cibubur",
+                "greenhouse_name": "Sayuran Pagi",
+                "room_name": "Penyemaian",
+                "room_id": "1a",
+                "node_id": "kebun-cibubur_sarapan-pagi_penyemaian_room-1a"
             }
         }

@@ -5,9 +5,7 @@ from motor.motor_asyncio import AsyncIOMotorCollection
 from cores.config import env
 
 client: AsyncIOMotorClient = AsyncIOMotorClient(env.MONGO_CONNECTION_URL)
-db: AsyncIOMotorDatabase = client[env.MONGO_DATABASE_NAME]
-firmware_collection: AsyncIOMotorCollection = db["firmware"]
-log_collection: AsyncIOMotorCollection = db["log"]
+_db: AsyncIOMotorDatabase = client[env.MONGO_DATABASE_NAME]
 
 async def start_mongodb_connection() -> bool:
     """
@@ -15,9 +13,9 @@ async def start_mongodb_connection() -> bool:
     """
     try:
         # Attempt to run a simple command to check the connection
-        await db.command("ping")
+        await _db.command("ping")
         return True
-    except Exception as e:
+    except Exception:
         return False
 
 async def stop_mongodb_connection() -> bool:
@@ -27,5 +25,5 @@ async def stop_mongodb_connection() -> bool:
     try:
         await client.close()
         return True
-    except Exception as e:
+    except Exception:
         return False

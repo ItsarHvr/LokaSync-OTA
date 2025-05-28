@@ -5,6 +5,7 @@ from fastapi.responses import RedirectResponse
 from cores.config import env
 
 router_index = APIRouter()
+
 @router_index.get("/", include_in_schema=False, status_code=status.HTTP_302_FOUND)
 async def redirect_to_health_check(request: Request):
     """
