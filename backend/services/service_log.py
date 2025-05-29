@@ -20,8 +20,9 @@ class ServiceLog:
 
     async def get_list_log(
         self,
-        node_name: Optional[str] = None,
-        firmware_version: Optional[str] = None,
+        node_location: Optional[str] = None,
+        node_type: Optional[str] = None,
+        ota_status: Optional[str] = None,
         page: int = 1,
         per_page: int = 5
     ) -> OutputLogPagination:
@@ -30,14 +31,16 @@ class ServiceLog:
             list_log: list = await self.log_repository.get_list_log(
                 page=page,
                 per_page=per_page,
-                node_name=node_name,
-                firmware_version=firmware_version
+                node_location=node_location,
+                node_type=node_type,
+                ota_status=ota_status
             )
 
             # 2. Total data
             total_data: int = await self.log_repository.count_list_log(
-                node_name=node_name,
-                firmware_version=firmware_version
+                node_location=node_location,
+                node_type=node_type,
+                ota_status=ota_status
             )
 
             # 3. Total page

@@ -13,6 +13,8 @@ class InputLog(BaseModel):
     firmware_version: str = Field(min_length=1, max_length=255)
     node_mac: Optional[str] = Field(default=None, min_length=1, max_length=255)
     data: Optional[Dict[str, Any]] = None
+    firmware_size: Optional[float] = None
+    download_speed: Optional[float] = None
     download_status: str = Field(default="pending", min_length=1, max_length=255)
     ota_status: str = Field(default="pending", min_length=1, max_length=255)
 

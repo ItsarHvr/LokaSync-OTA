@@ -15,7 +15,7 @@ BROKER_ADDRESS = os.getenv("MQTT_ADDRESS")
 BROKER_PORT = int(os.getenv("MQTT_PORT"))
 
 TOPICS = [
-    ("LokaSync/CloudOTA/Log", 0),
+    ("LokaSync/CloudLog/OTAUpdate", 0),
     ("LokaSync/CloudOTA/Firmware", 0)
 ]
 
@@ -36,7 +36,7 @@ def on_message(client, userdata, msg):
     try:
         data = json.loads(payload_raw)
 
-        if topic == "LokaSync/CloudOTA/Log":
+        if topic == "LokaSync/CloudLog/OTAUpdate":
             asyncio.run_coroutine_threadsafe(add_log(data), loop)
         elif topic == "LokaSync/CloudOTA/Firmware":
             pass
@@ -49,7 +49,14 @@ def on_message(client, userdata, msg):
 
 async def add_log(payload: dict):
     try:
-        required_keys = ["type", "message", "node_name", "firmware_version"]
+        required_keys = [
+            "type", 
+            "message", 
+            "node_codename", 
+            "node_location",
+            "node_type", 
+            "firmware_version"
+        ]
         if not all(k in payload for k in required_keys):
             print(f"[MQTT] Incomplete payload: {payload}")
             return
