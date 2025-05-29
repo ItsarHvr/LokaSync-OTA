@@ -14,33 +14,21 @@ def verify_id_token(id_token: str) -> dict:
         return decoded_token
     except auth.InvalidIdTokenError:
         raise HTTPException(
-            detail={
-                "message": "Invalid ID token",
-                "status_code": status.HTTP_401_UNAUTHORIZED
-            },
+            detail="Invalid ID token",
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
     except auth.ExpiredIdTokenError:
         raise HTTPException(
-            detail={
-                "message": "ID token has expired",
-                "status_code": status.HTTP_401_UNAUTHORIZED
-            },
+            detail="ID token has expired",
             status_code=status.HTTP_401_UNAUTHORIZED
         )
     except auth.RevokedIdTokenError:
         raise HTTPException(
-            detail={
-                "message": "ID token has been revoked",
-                "status_code": status.HTTP_401_UNAUTHORIZED
-            },
+            detail="ID token has been revoked",
             status_code=status.HTTP_401_UNAUTHORIZED
         )
     except Exception as e:
         raise HTTPException(
-            detail={
-                "message": str(e),
-                "status_code": status.HTTP_500_INTERNAL_SERVER_ERROR
-            },
+            detail=str(e),
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )

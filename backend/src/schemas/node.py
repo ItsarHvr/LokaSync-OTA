@@ -1,5 +1,4 @@
 from pydantic import BaseModel, Field, field_validator
-from fastapi import File, UploadFile
 from typing import Optional, List
 
 from models.node import NodeModel
@@ -8,8 +7,10 @@ from schemas.common import (
     BasePagination,
     BaseFilterOptions
 )
-from cores.config import env
-from utils.validator import validate_input
+from utils.validator import (
+    validate_input,
+    sanitize_input
+)
 
 
 class NodeCreateSchema(BaseModel):
@@ -19,7 +20,7 @@ class NodeCreateSchema(BaseModel):
         ...,
         min_length=3,
         max_length=255,
-        description="Location identifier for the node (e.g., Cibubur - Sayuran Pagi, etc.)"
+        description="Location identifier for the node (e.g., Cibubur-SayuranPagi, etc.)"
     )
     node_type: str = Field(
         ...,
@@ -29,9 +30,9 @@ class NodeCreateSchema(BaseModel):
     )
     node_id: str = Field(
         ...,
-        min_length=2,
+        min_length=1,
         max_length=10,
-        description="Type of the node (e.g., 1a, 1b, 2c, etc.)"
+        description="Specific node id (e.g., 1a, 1b, 2c, etc.)"
     )
     description: Optional[str] = Field(
         default=None,
@@ -39,26 +40,24 @@ class NodeCreateSchema(BaseModel):
         description="Optional description for the node"
     )
 
-    @field_validator("node_location")
-    def validate_node_location(cls, v):
+    @field_validator("node_location", "node_type", "node_id")
+    def validate_node_input(cls, v):
         return validate_input(v)
 
-    @field_validator("node_type")
-    def validate_node_type(cls, v):
-        return validate_input(v)
-
-    @field_validator("node_id")
-    def validate_node_id(cls, v):
-        return validate_input(v)
+    @field_validator("description")
+    def validate_description(cls, v):
+        if v is not None:
+            return sanitize_input(v)
+        return v
 
 
     class Config:
         json_schema_extra = {
             "example": {
-                "node_location": "Cibubur - SayuranPagi",
+                "node_location": "Cibubur-SayuranPagi",
                 "node_type": "Penyemaian",
                 "node_id": "1a",
-                "description": "Kebun sayuran di Cibubur",
+                "description": "This is a description of the location.",
             }
         }
 
@@ -84,12 +83,8 @@ class NodeModifyVersionSchema(BaseModel):
         pattern=r'^https?://.*$',
         description="Direct URL to the firmware file (provide if not uploading a file)"
     )
-    firmware_file: UploadFile = File(
-        default=None,
-        media_type="application/octet-stream",
-        max_length=f"{env.UPLOAD_FILE_MAX_SIZE_MB}" * 1024 * 1024
-    )
     
+
     class Config:
         """
         Configuration for the NodeUpdateSchema.
@@ -99,7 +94,6 @@ class NodeModifyVersionSchema(BaseModel):
             "example": {
                 "firmware_url": "https://example.com/firmware/example.ino.bin",
                 "firmware_version": "1.0",
-                "firmware_file": None
             }
         }
 
@@ -126,7 +120,7 @@ class NodeResponse(BaseAPIResponse, BasePagination):
                 "total_data": 0,
                 "total_page": 1,
                 "filter_options": {
-                    "node_locations": [
+                    "node_location": [
                         "Kebun Cibubur",
                         "Kebun Bogor"
                     ],
@@ -140,7 +134,7 @@ class NodeResponse(BaseAPIResponse, BasePagination):
                         "id": "123456789",
                         "created_at": "2023-10-01T12:00:00+07:00",
                         "latest_updated": "2023-10-01T12:00:05+07:00",
-                        "node_location": "Cibubur - SayuranPagi",
+                        "node_location": "Cibubur-SayuranPagi",
                         "node_type": "Penyemaian",
                         "node_id": "1a",
                         "node_codename": "cibubur-sayuranpagi_penyemaian_1a",
@@ -164,7 +158,7 @@ class SingleNodeResponse(BaseAPIResponse):
                     "id": "123456789",
                     "created_at": "2023-10-01T12:00:00+07:00",
                     "latest_updated": "2023-10-01T12:00:05+07:00",
-                    "node_location": "Cibubur - SayuranPagi",
+                    "node_location": "Cibubur-SayuranPagi",
                     "node_type": "Penyemaian",
                     "node_id": "1a",
                     "node_codename": "cibubur-sayuranpagi_penyemaian_1a",
@@ -172,5 +166,20 @@ class SingleNodeResponse(BaseAPIResponse):
                     "firmware_url": "https://example.com/firmware/example.ino.bin",
                     "firmware_version": "1.0"
                 }
+            }
+        }
+
+
+class FirmwareVersionListResponse(BaseAPIResponse):
+    data: List[str] = []
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "data": [
+                    "1.0",
+                    "1.1",
+                    "2.0"
+                ]
             }
         }

@@ -3,12 +3,10 @@ from fastapi import (
     Request,
     Response,
     status,
-    UploadFile,
     Depends,
     Query,
     Path,
-    Body,
-    File
+    Body
 )
 from typing import Optional, Dict, Any
 
@@ -17,14 +15,19 @@ from schemas.node import (
     NodeCreateSchema,
     NodeModifyVersionSchema,
     NodeResponse,
-    SingleNodeResponse
+    SingleNodeResponse,
+    FirmwareVersionListResponse
 )
 from schemas.common import BaseAPIResponse
 from cores.dependencies import get_current_user
+from middlewares.rate_limiter import limiter
+from cores.config import env
 
-node_router = APIRouter()
+router_node = APIRouter()
 
-@node_router.post("/add-location", response_model=SingleNodeResponse)
+@router_node.post("/add-location", response_model=SingleNodeResponse)
+@limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_MINUTE}/minute")
+@limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_HOUR}/hour")
 async def add_node_location(
     request: Request,
     response: Response,
@@ -33,52 +36,57 @@ async def add_node_location(
     current_user: dict = Depends(get_current_user)
 ):
     node = await service.add_node_location(payload)
-    return SingleNodeResponse(message="Node created", status_code=status.HTTP_201_CREATED, data=node)
+    return SingleNodeResponse(
+        message="Node created",
+        status_code=status.HTTP_201_CREATED,
+        data=node
+    )
 
-@node_router.put("/edit/{node_codename}", response_model=SingleNodeResponse)
-async def add_first_version(
+@router_node.post("/add-firmware/{node_codename}", response_model=SingleNodeResponse)
+@limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_MINUTE}/minute")
+@limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_HOUR}/hour")
+async def upsert_firmware(
     request: Request,
     response: Response,
     node_codename: str = Path(..., description="Node codename"),
-    firmware_version: str = Body(...),
-    firmware_url: Optional[str] = Body(None),
-    firmware_file: Optional[UploadFile] = File(None),
+    payload: NodeModifyVersionSchema = Body(...),
     service: NodeService = Depends(),
     current_user: dict = Depends(get_current_user)
 ):
-    data = NodeModifyVersionSchema(
-        firmware_version=firmware_version,
-        firmware_url=firmware_url,
-        firmware_file=firmware_file
+    node = await service.upsert_firmware(node_codename, payload)
+    return SingleNodeResponse(
+        message="Firmware version added",
+        status_code=status.HTTP_200_OK,
+        data=node
     )
-    node = await service.add_first_version(node_codename, data)
-    return SingleNodeResponse(message="Firmware updated", status_code=status.HTTP_200_OK, data=node)
 
-@node_router.post("/add-firmware/{node_codename}", response_model=SingleNodeResponse, status_code=status.HTTP_200_OK)
-async def add_new_version(
+@router_node.patch("/edit-firmware/{node_codename}", response_model=SingleNodeResponse)
+@limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_MINUTE}/minute")
+@limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_HOUR}/hour")
+async def edit_description(
     request: Request,
     response: Response,
-    node_codename: str = Path(..., description="Node codename"),
-    firmware_version: str = Body(...),
-    firmware_url: Optional[str] = Body(None),
-    firmware_file: Optional[UploadFile] = File(None),
+    node_codename: str = Path(..., description="Node codename to edit "),
+    firmware_version: Optional[str] = Query(None, description="Firmware version to edit"),
+    description: Optional[str] = Body(None, embed=True),
     service: NodeService = Depends(),
     current_user: dict = Depends(get_current_user)
 ):
-    data = NodeModifyVersionSchema(
-        firmware_version=firmware_version,
-        firmware_url=firmware_url,
-        firmware_file=firmware_file
+    node = await service.update_description(node_codename, description, firmware_version)
+    return SingleNodeResponse(
+        message="Description updated",
+        status_code=status.HTTP_200_OK,
+        data=node
     )
-    node = await service.add_new_version(node_codename, data)
-    return SingleNodeResponse(message="Firmware version updated", data=node)
 
-@node_router.get("/", response_model=NodeResponse)
+@router_node.get("/", response_model=NodeResponse)
+@limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_MINUTE}/minute")
+@limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_HOUR}/hour")
 async def get_all_nodes(
     request: Request,
     response: Response,
-    page: int = Query(1, ge=1),
-    page_size: int = Query(10, ge=1, le=100),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=10, ge=1, le=100),
     node_location: Optional[str] = Query(None),
     node_type: Optional[str] = Query(None),
     service: NodeService = Depends(),
@@ -96,7 +104,7 @@ async def get_all_nodes(
     filter_options = await service.get_filter_options()
 
     return NodeResponse(
-        message="Success",
+        message="Success get all nodes",
         status_code=status.HTTP_200_OK,
         page=page,
         page_size=page_size,
@@ -106,23 +114,49 @@ async def get_all_nodes(
         data=nodes
     )
 
-@node_router.get("/{node_codename}", response_model=SingleNodeResponse)
-async def get_node(
+@router_node.get("/detail/{node_codename}", response_model=SingleNodeResponse)
+@limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_MINUTE}/minute")
+@limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_HOUR}/hour")
+async def get_detail_node(
     request: Request,
     response: Response,
-    node_codename: str = Path(...),
+    node_codename: str = Path(..., description="Node codename to get details"),
+    firmware_version: Optional[str] = Query(None, description="Firmware version to get details"),
     service: NodeService = Depends(),
     current_user: dict = Depends(get_current_user)
 ):
-    node = await service.get_node(node_codename)
-    return SingleNodeResponse(message="Success", status_code=status.HTTP_200_OK, data=node)
+    node = await service.get_detail_node(node_codename, firmware_version)
+    return SingleNodeResponse(
+        message="Success get detail node",
+        status_code=status.HTTP_200_OK,
+        data=node
+    )
 
-@node_router.delete("/delete/{node_codename}", response_model=BaseAPIResponse)
+@router_node.get("/version/{node_codename}", response_model=FirmwareVersionListResponse)
+@limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_MINUTE}/minute")
+@limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_HOUR}/hour")
+async def get_firmware_versions(
+    request: Request,
+    response: Response,
+    node_codename: str = Path(..., description="Node codename"),
+    service: NodeService = Depends(),
+    current_user: dict = Depends(get_current_user)
+):
+    versions = await service.get_firmware_versions(node_codename)
+    return FirmwareVersionListResponse(
+        message="Success get firmware versions",
+        status_code=status.HTTP_200_OK,
+        data=versions
+    )
+
+@router_node.delete("/delete/{node_codename}", response_model=BaseAPIResponse)
+@limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_MINUTE}/minute")
+@limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_HOUR}/hour")
 async def delete_node(
     request: Request,
     response: Response,
-    node_codename: str = Path(...),
-    firmware_version: Optional[str] = Query(None),
+    node_codename: str = Path(..., max_length=255, description="Node codename to delete"),
+    firmware_version: Optional[str] = Query(None, max_length=255, description="Firmware version to delete"),
     service: NodeService = Depends(),
     current_user: dict = Depends(get_current_user)
 ):

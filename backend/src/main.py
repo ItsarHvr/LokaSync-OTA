@@ -10,7 +10,7 @@ from cores.exceptions import validation_exception_handler, http_exception_handle
 
 from routers.v1.index import router_index
 from routers.v1.health import router_health
-from routers.v1.node import node_router
+from routers.v1.node import router_node
 # from routers.v1.log import router_log
 # from routers.v1.monitoring import router_monitoring
 
@@ -18,7 +18,6 @@ from middlewares.request_timeout import RequestTimeoutMiddleware
 from middlewares.rate_limiter import init_rate_limiter
 
 from externals.firebase.client import init_firebase_app
-from externals.gdrive.client import check_google_drive_credentials
 from externals.mqtts.run import start_mqtt_service, stop_mqtt_service
 
 ##### Define lifespan event handler #####
@@ -58,9 +57,9 @@ async def _lifespan(_app: FastAPI):
     print("\n🔐 [TASK 3]: Initializing Firebase...")
     init_firebase_app()
     
-    # Task 4: Check Google Drive credentials
-    print("\n🧾 [TASK 4]: Checking Google Drive credentials...")
-    check_google_drive_credentials()
+    # # Task 4: Check Google Drive credentials
+    # print("\n🧾 [TASK 4]: Checking Google Drive credentials...")
+    # check_google_drive_credentials()
 
     print("\n✅ LokaSync OTA Backend: Lifespan startup sequence finished.")
 
@@ -116,6 +115,6 @@ app.add_exception_handler(HTTPException, http_exception_handler)
 ##### Add routes #####
 app.include_router(router_index)
 app.include_router(router_health, tags=["Health Check"])
-app.include_router(node_router, prefix=f"{API_VERSION}/node", tags=["Node Management"])
+app.include_router(router_node, prefix=f"{API_VERSION}/node", tags=["Node Management"])
 # app.include_router(router_monitoring, prefix=f"{API_VERSION}/monitoring", tags=["Monitoring"])
 # app.include_router(router_log, prefix=f"{API_VERSION}/log", tags=["Log"])

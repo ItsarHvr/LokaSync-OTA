@@ -19,11 +19,8 @@ def get_current_user(
     """
     if id_token is None or id_token.scheme.lower() != "bearer":
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={
-                "message": "Invalid or missing authorization token",
-                "status_code": status.HTTP_401_UNAUTHORIZED
-            }
+            detail="Invalid or missing authorization token",
+            status_code=status.HTTP_401_UNAUTHORIZED
         )
 
     return verify_id_token(id_token.credentials)

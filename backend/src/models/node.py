@@ -8,7 +8,10 @@ from utils.datetime import (
     set_default_timezone,
     convert_datetime_to_str
 )
-from utils.validator import validate_input
+from utils.validator import (
+    validate_input,
+    sanitize_input
+)
 
 
 class NodeModel(BaseModel):
@@ -27,7 +30,7 @@ class NodeModel(BaseModel):
     )
     node_id: str = Field(
         ...,
-        min_length=2,
+        min_length=1,
         max_length=255,
     )
     node_codename: str = Field(
@@ -50,17 +53,15 @@ class NodeModel(BaseModel):
         max_length=20
     )
 
-    @field_validator("node_location")
+    @field_validator("node_location", "node_type", "node_id")
     def validate_node_location(cls, v):
         return validate_input(v)
 
-    @field_validator("node_type")
-    def validate_node_type(cls, v):
-        return validate_input(v)
-
-    @field_validator("node_id")
-    def validate_node_id(cls, v):
-        return validate_input(v)
+    @field_validator("description")
+    def validate_description(cls, v):
+        if v is not None:
+            return sanitize_input(v)
+        return v
 
 
     class Config:
@@ -83,7 +84,7 @@ class NodeModel(BaseModel):
                 "id": "123456789",
                 "created_at": "2023-10-01T12:00:00+07:00",
                 "latest_updated": "2023-10-01T12:00:05+07:00",
-                "node_location": "Cibubur - SayuranPagi",
+                "node_location": "Cibubur-SayuranPagi",
                 "node_type": "Penyemaian",
                 "node_id": "1a",
                 "node_codename": "cibubur-sayuranpagi_penyemaian_1a",
