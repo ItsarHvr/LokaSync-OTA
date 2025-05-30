@@ -1,7 +1,6 @@
 from fastapi import (
     APIRouter, 
     status,
-    Request,
     Response,
     Depends,
     Query
@@ -11,18 +10,12 @@ from typing import Optional, Dict, Any
 from enums.log import LogStatus
 from schemas.log import LogDataResponse
 from services.log import LogService
-from middlewares.rate_limiter import limiter
-from cores.config import env
 from cores.dependencies import get_current_user
 
 router_log = APIRouter()
 
-@router_log.get("/", response_model=LogDataResponse)
-@limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_MINUTE}/minute")
-@limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_HOUR}/hour")
+@router_log.get(path="/", response_model=LogDataResponse)
 async def get_all_logs(
-    request: Request,
-    response: Response,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=10, ge=1, le=100),
     node_location: Optional[str] = Query(default=None, min_length=3, max_length=255),
@@ -59,15 +52,11 @@ async def get_all_logs(
 
 
 @router_log.delete(
-    "/delete/{node_codename}",
+    path="/delete/{node_codename}",
     status_code=status.HTTP_204_NO_CONTENT,
     response_class=Response
 )
-@limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_MINUTE}/minute")
-@limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_HOUR}/hour")
 async def delete_log(
-    request: Request,
-    response: Response,
     node_codename: str,
     firmware_version: Optional[str] = None,
     service: LogService = Depends(),

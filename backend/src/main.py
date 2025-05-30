@@ -14,9 +14,6 @@ from routers.v1.node import router_node
 from routers.v1.monitoring import router_monitoring
 from routers.v1.log import router_log
 
-from middlewares.request_timeout import RequestTimeoutMiddleware
-from middlewares.rate_limiter import init_rate_limiter
-
 from externals.firebase.client import init_firebase_app
 from externals.mqtts.run import start_mqtt_service, stop_mqtt_service
 
@@ -57,10 +54,6 @@ async def _lifespan(_app: FastAPI):
     print("\n🔐 [TASK 3]: Initializing Firebase...")
     init_firebase_app()
     
-    # # Task 4: Check Google Drive credentials
-    # print("\n🧾 [TASK 4]: Checking Google Drive credentials...")
-    # check_google_drive_credentials()
-
     print("\n✅ LokaSync OTA Backend: Lifespan startup sequence finished.")
 
     yield # application runs here
@@ -105,8 +98,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.add_middleware(RequestTimeoutMiddleware, timeout_seconds=env.MIDDLEWARE_REQUEST_TIMEOUT_SECOND)
-init_rate_limiter(app)
 
 # Register custom exception handlers
 app.add_exception_handler(RequestValidationError, validation_exception_handler)

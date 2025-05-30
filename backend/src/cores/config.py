@@ -16,9 +16,6 @@ class Environment(BaseSettings):
     APP_NAME: str = getenv("APP_NAME", "LokaSync REST API")
     APP_DESCRIPTION: str = getenv("APP_DESCRIPTION", "LokaSync REST API for updating ESP firmware devices via Over-The-Air")
 
-    # Upload file settings
-    UPLOAD_FILE_MAX_SIZE_MB: int = int(getenv("UPLOAD_FILE_MAX_SIZE_MB", 2))
-    
     # MongoDB settings
     MONGO_DATABASE_NAME: str = getenv("MONGO_DATABASE_NAME", "example_db")
     MONGO_CONNECTION_URL: str = getenv("MONGO_CONNECTION_URL", "mongodb://localhost:27017/")
@@ -37,18 +34,10 @@ class Environment(BaseSettings):
     MQTT_CLIENT_ID: str = getenv("MQTT_CLIENT_ID", f"lokasync_backend_{randint(1000, 9999)}")
     MQTT_DEFAULT_QOS: int = int(getenv("MQTT_DEFAULT_QOS", 1))
 
-    # Google Drive settings
-    GOOGLE_DRIVE_CREDS_NAME: str = getenv("GOOGLE_DRIVE_CREDS_NAME")
-    GOOGLE_DRIVE_FOLDER_ID: str = getenv("GOOGLE_DRIVE_FOLDER_ID")
-
     # Firebase auth settings
     FIREBASE_CREDS_NAME: str = getenv("FIREBASE_CREDS_NAME")
 
     # Middleware settings
-    MIDDLEWARE_REQUEST_TIMEOUT_SECOND: float = float(getenv("MIDDLEWARE_REQUEST_TIMEOUT_SECOND", 30.0))
-    MIDDLEWARE_REQUEST_TIMEOUT_SECOND_UPLOAD: float = float(getenv("MIDDLEWARE_REQUEST_TIMEOUT_SECOND_UPLOAD", 120.0))
-    MIDDLEWARE_RATE_LIMIT_REQUEST_PER_MINUTE: int = int(getenv("MIDDLEWARE_RATE_LIMIT_REQUEST_PER_MINUTE", 10))
-    MIDDLEWARE_RATE_LIMIT_REQUEST_PER_HOUR: int = int(getenv("MIDDLEWARE_RATE_LIMIT_REQUEST_PER_HOUR", 100))
     MIDDLEWARE_CORS_ALLOWED_ORIGINS: list[str] = getenv("MIDDLEWARE_CORS_ALLOWED_ORIGINS", "http://localhost,http://localhost:3000").split(",")
 
     # Timezone settings

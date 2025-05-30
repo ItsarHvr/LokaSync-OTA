@@ -1,15 +1,13 @@
-from fastapi import APIRouter, status, Request, Response
+from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import HTTPException
 
 from cores.config import env
-from middlewares.rate_limiter import limiter
 
 router_health = APIRouter()
 
 @router_health.get(path="/health", include_in_schema=False, status_code=status.HTTP_200_OK)
-@limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_MINUTE}/minute")
-async def health_check(request: Request, response: Response):
+async def health_check():
     """
     Health check endpoint to verify the API is running.
     Returns a simple JSON response indicating the service is healthy.
