@@ -1,4 +1,5 @@
-from pydantic.v1 import BaseSettings
+from typing import List
+from pydantic.v1 import BaseSettings, validator
 from dotenv import load_dotenv
 from random import randint
 from os import getenv
@@ -38,7 +39,11 @@ class Environment(BaseSettings):
     FIREBASE_CREDS_NAME: str = getenv("FIREBASE_CREDS_NAME")
 
     # Middleware settings
-    MIDDLEWARE_CORS_ALLOWED_ORIGINS: list[str] = getenv("MIDDLEWARE_CORS_ALLOWED_ORIGINS", "http://localhost,http://localhost:3000").split(",")
+    MIDDLEWARE_CORS_ALLOWED_ORIGINS: List[str] = [
+        "http://localhost",
+        "http://localhost:3000",
+        "http://localhost:5173"
+    ]
 
     # Timezone settings
     TIMEZONE: str = getenv("TIMEZONE", "Asia/Jakarta")
