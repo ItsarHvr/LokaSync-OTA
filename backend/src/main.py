@@ -12,7 +12,7 @@ from routers.v1.index import router_index
 from routers.v1.health import router_health
 from routers.v1.node import router_node
 from routers.v1.monitoring import router_monitoring
-# from routers.v1.log import router_log
+from routers.v1.log import router_log
 
 from middlewares.request_timeout import RequestTimeoutMiddleware
 from middlewares.rate_limiter import init_rate_limiter
@@ -116,5 +116,5 @@ app.add_exception_handler(HTTPException, http_exception_handler)
 app.include_router(router_index)
 app.include_router(router_health, tags=["Health Check"])
 app.include_router(router_node, prefix=f"{API_VERSION}/node", tags=["Node Management"])
-app.include_router(router_monitoring, prefix=f"{API_VERSION}/monitoring", tags=["Monitoring"])
-# app.include_router(router_log, prefix=f"{API_VERSION}/log", tags=["Log"])
+app.include_router(router_monitoring, prefix=f"{API_VERSION}/monitoring", tags=["Monitoring Nodes"])
+app.include_router(router_log, prefix=f"{API_VERSION}/log", tags=["OTA Update Logs"])

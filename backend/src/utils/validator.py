@@ -8,20 +8,12 @@ def sanitize_input(value: str) -> str:
     
     Target input is only for `description`, which is flexible but needs to be safe for HTML rendering.
     """
-    ALLOWED_CHARS_REGEX = re.compile(r"^[\w\s.,:;!?()\-_/']+$")
-
-    # Escape HTML untuk cegah XSS
+    ALLOWED_CHARS_REGEX = re.compile(r"^[\w\s.,:;!?()\-_/']*$")  # <-- changed + to *
     value = escape(value)
-
-    # Optional: Remove karakter kontrol seperti \x00, \x1f, dll
     value = re.sub(r"[\x00-\x1f\x7f]", "", value)
-
-    # Validasi karakter berbahaya
     if not ALLOWED_CHARS_REGEX.fullmatch(value):
         raise ValueError("Description contains invalid characters.")
-
     return value
-    
 
 def validate_input(value: str) -> str:
     """

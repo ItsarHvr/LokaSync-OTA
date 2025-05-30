@@ -7,6 +7,7 @@ class LogStatus(str, Enum):
     """
     SUCCESS = "success"
     FAILED = "failed"
+    IN_PROGRESS = "in progress"
 
     def __str__(self) -> str:
         return self.value

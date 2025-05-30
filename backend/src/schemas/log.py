@@ -1,30 +1,66 @@
-# from pydantic import BaseModel, Field
-# from typing import Optional, List, TypedDict
+from typing import List, Optional
 
-# from dtos.dto_common import BasePage
-# from models.model_log import Log
-
-# class InputLog(BaseModel):
-#     node_location: str = Field(min_length=1, max_length=255)
-#     node_status: bool = Field(default=False)
-#     first_version: str = Field(min_length=1, max_length=255)
-#     latest_version: str = Field(min_length=1, max_length=255)
+from schemas.common import (
+    BaseAPIResponse,
+    BasePagination,
+    BaseFilterOptions
+)
+from models.log import LogModel
+from enums.log import LogStatus
 
 
-#     class Config:
-#         json_schema_extra ={
-#             "example": {
-#                 "node_location": "Depok Greenhouse",
-#                 "node_status": True,
-#                 "first_version": "1.0.0",
-#                 "latest_version": "1.0.1",
-#             }
-#         }
+class LogFilterOptions(BaseFilterOptions):
+    """ Filter options specific to logs data. """
+    flash_statuses: List[LogStatus]
 
-# class FilterOption(TypedDict):
-#     node_location: List[str]
-#     node_status: List[bool]
+class LogDataResponse(BaseAPIResponse, BasePagination):
+    filter_options: LogFilterOptions = {}
+    data: List[LogModel] = []
 
-# class OutputLogPagination(BasePage):
-#     filter_options: FilterOption = Field(default_factory=lambda:{"node_location": [], "node_status": []})
-#     log_data: List[Log] = Field(default_factory=list)
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "message": "List of logs retrieved successfully",
+                "status_code": 200,
+                "page": 1,
+                "page_size": 10,
+                "total_data": 0,
+                "total_page": 1,
+                "filter_options": {
+                    "node_locations": [
+                        "Cibubur-SayuranPagi",
+                        "Bogor-SayuranPagi"
+                    ],
+                    "node_types": [
+                        "Penyemaian",
+                        "Pembibitan"
+                    ],
+                    "flash_statuses": [
+                        LogStatus.IN_PROGRESS,
+                        LogStatus.SUCCESS,
+                        LogStatus.FAILED
+                    ]
+                },
+                "data": [
+                    {
+                        "_id": "60c72b2f9b1e8d001c8e4f3a",
+                        "created_at": "2023-10-01T12:00:00Z",
+                        "session_id": "session123",
+                        "node_mac": "00:1A:2B:3C:4D:5E",
+                        "node_location": "Cibubur-SayuranPagi",
+                        "node_type": "Pembibitan",
+                        "node_id": "1a",
+                        "node_codename": "cibubur-sayuranpagi_pembibitan_1a",
+                        "firmware_version": "1.0",
+                        "download_started_at": None,
+                        "firmware_size_kb": None,
+                        "bytes_written": None,
+                        "download_duration_sec": None,
+                        "download_speed_kbps": None,
+                        "download_completed_at": None,
+                        "flash_completed_at": None,
+                        "flash_status": str(LogStatus.IN_PROGRESS)
+                    }
+                ]
+            }
+        }

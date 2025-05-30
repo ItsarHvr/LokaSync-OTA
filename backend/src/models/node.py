@@ -36,6 +36,7 @@ class NodeModel(BaseModel):
     node_codename: str = Field(
         ...,
         min_length=3,
+        max_length=255
     )
     description: Optional[str] = Field(
         default=None,
@@ -50,7 +51,7 @@ class NodeModel(BaseModel):
         ...,
         pattern=r'^\d+\.\d+$',
         min_length=3,
-        max_length=20
+        max_length=10
     )
 
     @field_validator("node_location", "node_type", "node_id")
@@ -81,13 +82,13 @@ class NodeModel(BaseModel):
         json_encoders = { ObjectId: str, datetime: convert_datetime_to_str }
         json_schema_extra = {
             "example": {
-                "id": "123456789",
+                "_id": "123456789",
                 "created_at": "2023-10-01T12:00:00+07:00",
                 "latest_updated": "2023-10-01T12:00:05+07:00",
                 "node_location": "Cibubur-SayuranPagi",
-                "node_type": "Penyemaian",
+                "node_type": "Pembibitan",
                 "node_id": "1a",
-                "node_codename": "cibubur-sayuranpagi_penyemaian_1a",
+                "node_codename": "cibubur-sayuranpagi_pembibitan_1a",
                 "description": "This is a description of the node.",
                 "firmware_url": "https://example.com/firmware/example.ino.bin",
                 "firmware_version": "1.0"

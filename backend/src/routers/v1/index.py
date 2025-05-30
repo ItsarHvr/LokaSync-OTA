@@ -1,8 +1,5 @@
-# Redirect to the check health endpoint
 from fastapi import APIRouter, status, Request
 from fastapi.responses import RedirectResponse
-
-from cores.config import env
 
 router_index = APIRouter()
 

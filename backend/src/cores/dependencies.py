@@ -34,14 +34,14 @@ async def get_db_connection():
 
 async def get_nodes_collection():
     """
-    Dependency to get the firmware collection.
-    This function can be used in FastAPI routes to access the firmware collection.
+    Dependency to get the nodes collection.
+    This function can be used in FastAPI routes to access the nodes collection.
     """
     return _db.get_collection("nodes")
 
-async def get_log_collection():
+async def get_logs_collection():
     """
     Dependency to get the log collection.
     This function can be used in FastAPI routes to access the log collection.
     """
-    return _db.get_collection("log")
+    return _db.get_collection("logs")

@@ -1,12 +1,14 @@
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 from schemas.common import BaseAPIResponse
+
 
 class ListNodeResponse(BaseAPIResponse):
     """
     List node schema for get available nodes.
     """
-    data: Dict[str, List[str]]
+    data: Dict[str, List[str]] = {}
+
 
     class Config:
         json_schema_extra = {
@@ -14,9 +16,9 @@ class ListNodeResponse(BaseAPIResponse):
                 "message": "List of nodes retrieved successfully",
                 "status_code": 200,
                 "data": {
-                    "node_location": ["Cibubur-SayuranPagi", "Cibubur-SayuranSiang"],
-                    "node_type": ["Penyemaian", "Pembibitan"],
-                    "node_id": ["1a", "1b"]
+                    "node_locations": ["Cibubur-SayuranPagi"],
+                    "node_types": ["Penyemaian", "Pembibitan"],
+                    "node_ids": ["1a", "1b"]
                 }
             }
         }

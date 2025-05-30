@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 
 class BaseAPIResponse(BaseModel):
@@ -36,13 +36,13 @@ class BasePagination(BaseModel):
 
 class BaseFilterOptions(BaseModel):
     """ Base class for filter options. """
-    node_location: List[str] = []
-    node_type: List[str] = []
+    node_locations: List[str]
+    node_types: List[str]
 
     class Config:
         json_schema_extra = {
             "example": {
-                "node_location": ["Kebun Cibubur", "Kebun Bogor"],
-                "node_type": ["Sayuran Pagi", "Buah Malam"],
+                "node_locations": ["Kebun Cibubur", "Kebun Bogor"],
+                "node_types": ["Sayuran Pagi", "Buah Malam"],
             }
         }

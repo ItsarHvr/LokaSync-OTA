@@ -1,27 +1,77 @@
-# from fastapi import APIRouter, Depends, Query
-# from typing import Optional
+from fastapi import (
+    APIRouter, 
+    status,
+    Request,
+    Response,
+    Depends,
+    Query
+)
+from typing import Optional, Dict, Any
 
-# from dtos.dto_log import InputLog, OutputLogPagination
-# from backend.services.log import ServiceLog
+from enums.log import LogStatus
+from schemas.log import LogDataResponse
+from services.log import LogService
+from middlewares.rate_limiter import limiter
+from cores.config import env
+from cores.dependencies import get_current_user
 
-# router_log = APIRouter(prefix="/api/v1", tags=["Log"])
+router_log = APIRouter()
 
-# @router_log.get(
-#     "/log",
-#     response_model=OutputLogPagination,
-#     summary="Get list to the log"
-# )
-# async def get_list_log(
-#     node_location: Optional[str] = Query(default=None, min_length=1, max_length=255),
-#     node_status: Optional[bool] = Query(default=None, ge=1),
-#     page: int = Query(1, ge=1),
-#     page_size: int = Query(5, ge=1, le=100),
-#     service_log: ServiceLog = Depends()
-# ):
-#     response_get = await service_log.get_list_log(
-#         page=page,
-#         page_size=page_size,
-#         node_location=node_location or None,
-#         node_status=node_status or None
-#     )
-#     return response_get
+@router_log.get("/", response_model=LogDataResponse)
+@limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_MINUTE}/minute")
+@limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_HOUR}/hour")
+async def get_all_logs(
+    request: Request,
+    response: Response,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=10, ge=1, le=100),
+    node_location: Optional[str] = Query(default=None, min_length=3, max_length=255),
+    node_type: Optional[str] = Query(default=None, min_length=3, max_length=255),
+    flash_status: Optional[LogStatus] = Query(default=None, min_length=3, max_length=255),
+    service: LogService = Depends(),
+    current_user: dict = Depends(get_current_user)
+) -> LogDataResponse:
+    filters: Dict[str, Any] = {}
+
+    if node_location:
+        filters["node_location"] = node_location
+    if node_type:
+        filters["node_type"] = node_type
+    if flash_status:
+        filters["flash_status"] = flash_status
+
+    skip = (page - 1) * page_size
+    total_data = await service.count_logs(filters)
+    total_page = (total_data + page_size - 1) // page_size
+    logs = await service.get_all_logs(filters=filters, skip=skip, limit=page_size)
+    filter_options = await service.get_filter_options()
+    
+    return LogDataResponse(
+        message="List of logs retrieved successfully",
+        status_code=status.HTTP_200_OK,
+        page=page,
+        page_size=page_size,
+        total_data=total_data,
+        total_page=total_page,
+        filter_options=filter_options,
+        data=logs
+    )
+
+
+@router_log.delete(
+    "/delete/{node_codename}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response
+)
+@limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_MINUTE}/minute")
+@limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_HOUR}/hour")
+async def delete_log(
+    request: Request,
+    response: Response,
+    node_codename: str,
+    firmware_version: Optional[str] = None,
+    service: LogService = Depends(),
+    current_user: dict = Depends(get_current_user)
+) -> None:
+    await service.delete_log(node_codename, firmware_version)
+    return Response(status_code=status.HTTP_204_NO_CONTENT, content=None)

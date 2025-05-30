@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException
+from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 from pymongo import DESCENDING
 from typing import List, Dict, Any, Optional
@@ -9,6 +9,7 @@ from schemas.common import BaseFilterOptions
 from schemas.node import NodeCreateSchema
 from utils.datetime import set_default_timezone
 from utils.validator import set_codename
+
 
 class NodeRepository:
     def __init__(
@@ -41,10 +42,6 @@ class NodeRepository:
         doc["_id"] = result.inserted_id
 
         return NodeModel(**doc)
-
-    async def get_node_by_codename(self, node_codename: str) -> Optional[NodeModel]:
-        doc = await self.nodes_collection.find_one({"node_codename": node_codename})
-        return NodeModel(**doc) if doc else None
 
     async def upsert_firmware(
         self,
@@ -91,19 +88,15 @@ class NodeRepository:
 
             new_doc.pop("_id", None)
             result = await self.nodes_collection.insert_one(new_doc)
-
-            if not result.inserted_id:
-                return None
-
             new_doc["_id"] = result.inserted_id
 
-            return NodeModel(**new_doc)
+            return NodeModel(**new_doc) if new_doc else None
 
     async def update_description(
         self,
         node_codename: str,
-        description: Optional[str],
-        firmware_version: Optional[str] = None
+        description: str,
+        firmware_version: Optional[str]
     ) -> Optional[NodeModel]:
         now = set_default_timezone()
         filter_query = {"node_codename": node_codename}
@@ -130,14 +123,14 @@ class NodeRepository:
             doc = await self.nodes_collection.find_one(filter_query)
             return NodeModel(**doc) if doc else None
 
-    async def delete_node(self, node_codename: str, firmware_version: Optional[str] = None) -> int:
+    async def delete_node(self, node_codename: str, firmware_version: Optional[str]) -> int:
         if firmware_version:
             result = await self.nodes_collection.delete_one({
                 "node_codename": node_codename,
                 "firmware_version": firmware_version
             })
         else:
-            result = await self.nodes_collection.delete_one({"node_codename": node_codename})
+            result = await self.nodes_collection.delete_many({"node_codename": node_codename})
 
         return result.deleted_count
 
@@ -197,6 +190,10 @@ class NodeRepository:
         
         return NodeModel(**doc) if doc else None
 
+    async def get_node_by_codename(self, node_codename: str) -> bool:
+        doc = await self.nodes_collection.find_one({"node_codename": node_codename})
+        return True if doc else False
+
     async def get_firmware_versions(self, node_codename: str) -> Optional[List[str]]:
         docs = await (
             self.nodes_collection
@@ -225,4 +222,11 @@ class NodeRepository:
         ]
 
         result = await self.nodes_collection.aggregate(pipeline).to_list(length=1)
-        return result[0] if result else {"node_location": [], "node_type": []}
+        if result:
+            return BaseFilterOptions(
+                node_locations=result[0].get("node_location", []),
+                node_types=result[0].get("node_type", [])
+            )
+
+        # Return empty lists if not have result
+        return BaseFilterOptions(node_locations=[], node_types=[])

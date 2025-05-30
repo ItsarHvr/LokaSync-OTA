@@ -18,26 +18,29 @@ from schemas.node import (
     SingleNodeResponse,
     FirmwareVersionListResponse
 )
-from schemas.common import BaseAPIResponse
 from cores.dependencies import get_current_user
 from middlewares.rate_limiter import limiter
 from cores.config import env
 
 router_node = APIRouter()
 
-@router_node.post("/add-location", response_model=SingleNodeResponse)
+@router_node.post(
+    "/add-location",
+    status_code=status.HTTP_201_CREATED,
+    response_model=SingleNodeResponse
+)
 @limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_MINUTE}/minute")
 @limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_HOUR}/hour")
 async def add_node_location(
     request: Request,
     response: Response,
-    payload: NodeCreateSchema = Body(...),
+    payload: NodeCreateSchema = Body(..., embed=True),
     service: NodeService = Depends(),
     current_user: dict = Depends(get_current_user)
-):
+) -> SingleNodeResponse:
     node = await service.add_node_location(payload)
     return SingleNodeResponse(
-        message="Node created",
+        message="Node created successfully",
         status_code=status.HTTP_201_CREATED,
         data=node
     )
@@ -48,11 +51,11 @@ async def add_node_location(
 async def upsert_firmware(
     request: Request,
     response: Response,
-    node_codename: str = Path(..., description="Node codename"),
-    payload: NodeModifyVersionSchema = Body(...),
+    node_codename: str = Path(..., min_length=3, max_length=255),
+    payload: NodeModifyVersionSchema = Body(..., embed=True),
     service: NodeService = Depends(),
     current_user: dict = Depends(get_current_user)
-):
+) -> SingleNodeResponse:
     node = await service.upsert_firmware(node_codename, payload)
     return SingleNodeResponse(
         message="Firmware version added",
@@ -66,15 +69,15 @@ async def upsert_firmware(
 async def edit_description(
     request: Request,
     response: Response,
-    node_codename: str = Path(..., description="Node codename to edit "),
-    firmware_version: Optional[str] = Query(None, description="Firmware version to edit"),
-    description: Optional[str] = Body(None, embed=True),
+    node_codename: str = Path(..., min_length=3, max_length=255),
+    firmware_version: Optional[str] = Query(default=None, min_length=3, max_length=10),
+    description: Optional[str] = Body(default=None, embed=True),
     service: NodeService = Depends(),
     current_user: dict = Depends(get_current_user)
-):
+) -> SingleNodeResponse:
     node = await service.update_description(node_codename, description, firmware_version)
     return SingleNodeResponse(
-        message="Description updated",
+        message="Description updated successfully",
         status_code=status.HTTP_200_OK,
         data=node
     )
@@ -87,12 +90,13 @@ async def get_all_nodes(
     response: Response,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=10, ge=1, le=100),
-    node_location: Optional[str] = Query(None),
-    node_type: Optional[str] = Query(None),
+    node_location: Optional[str] = Query(default=None, min_length=3, max_length=255),
+    node_type: Optional[str] = Query(default=None, min_length=3, max_length=255),
     service: NodeService = Depends(),
     current_user: dict = Depends(get_current_user)
-):
+) -> NodeResponse:
     filters: Dict[str, Any] = {}
+
     if node_location:
         filters["node_location"] = node_location
     if node_type:
@@ -104,7 +108,7 @@ async def get_all_nodes(
     filter_options = await service.get_filter_options()
 
     return NodeResponse(
-        message="Success get all nodes",
+        message="List of nodes retrieved successfully",
         status_code=status.HTTP_200_OK,
         page=page,
         page_size=page_size,
@@ -120,14 +124,14 @@ async def get_all_nodes(
 async def get_detail_node(
     request: Request,
     response: Response,
-    node_codename: str = Path(..., description="Node codename to get details"),
-    firmware_version: Optional[str] = Query(None, description="Firmware version to get details"),
+    node_codename: str = Path(..., min_length=3, max_length=255),
+    firmware_version: Optional[str] = Query(default=None, min_length=3, max_length=10),
     service: NodeService = Depends(),
     current_user: dict = Depends(get_current_user)
-):
+) -> SingleNodeResponse:
     node = await service.get_detail_node(node_codename, firmware_version)
     return SingleNodeResponse(
-        message="Success get detail node",
+        message="Detail node retrieved successfully",
         status_code=status.HTTP_200_OK,
         data=node
     )
@@ -138,27 +142,31 @@ async def get_detail_node(
 async def get_firmware_versions(
     request: Request,
     response: Response,
-    node_codename: str = Path(..., description="Node codename"),
+    node_codename: str = Path(..., min_length=3, max_length=255),
     service: NodeService = Depends(),
     current_user: dict = Depends(get_current_user)
-):
+) -> FirmwareVersionListResponse:
     versions = await service.get_firmware_versions(node_codename)
     return FirmwareVersionListResponse(
-        message="Success get firmware versions",
+        message="Firmware versions retrieved successfully",
         status_code=status.HTTP_200_OK,
         data=versions
     )
 
-@router_node.delete("/delete/{node_codename}", response_model=BaseAPIResponse)
+@router_node.delete(
+    "/delete/{node_codename}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response
+)
 @limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_MINUTE}/minute")
 @limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_HOUR}/hour")
 async def delete_node(
     request: Request,
     response: Response,
-    node_codename: str = Path(..., max_length=255, description="Node codename to delete"),
-    firmware_version: Optional[str] = Query(None, max_length=255, description="Firmware version to delete"),
+    node_codename: str = Path(..., min_length=3, max_length=255),
+    firmware_version: Optional[str] = Query(default=None, min_length=3, max_length=10),
     service: NodeService = Depends(),
     current_user: dict = Depends(get_current_user)
-):
+) -> None:
     await service.delete_node(node_codename, firmware_version)
-    return BaseAPIResponse(message="Node deleted", status_code=status.HTTP_204_NO_CONTENT)
+    return Response(status_code=status.HTTP_204_NO_CONTENT, content=None)

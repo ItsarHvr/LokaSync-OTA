@@ -1,101 +1,81 @@
-# from firebase_admin import firestore
-# from typing import List, Optional
-# from google.cloud.firestore_v1.base_query import FieldFilter
-# from datetime import datetime, timezone
-# from fastapi.exceptions import HTTPException
+from fastapi import Depends
+from pymongo import DESCENDING
+from typing import Dict, Any, List, Optional
+from motor.motor_asyncio import (
+    AsyncIOMotorDatabase,
+    AsyncIOMotorCollection
+)
 
-# from models.model_log import Log
-# from dtos.dto_log import InputLog, FilterOption
+from models.log import LogModel
+from schemas.log import LogFilterOptions
+from cores.dependencies import (
+    get_db_connection,
+    get_logs_collection
+)
 
-# class LogRepository:
-#     def __init__(self):
-#         self.db = firestore.client()
-#         self.log_ref = self.db.collection("log")
 
-#     async def get_list_log(
-#         self,
-#         node_location: Optional[str] = None,
-#         node_status: Optional[bool] = None,
-#         page: int = 1,
-#         page_size: int = 5
-#     ) -> List[Log]:
-#         query = self.log_ref
-
-#         # 1. Collect filter data if any.
-#         if node_location is not None:
-#             query = query.where(filter=FieldFilter("node_location", "==", node_location))
-#         if node_status is not None:
-#             query = query.where(filter=FieldFilter("node_status", "==", node_status))
-
-#         # 2. Order filtered data by latest_updated field.
-#         query = query.order_by("latest_updated", direction=firestore.Query.DESCENDING)
-
-#         # 3. Set offset dan limit.
-#         # Offset itu intinya pertambahan item di halaman berikutnya (skip kalau di mongo).
-#         # Limit itu batasan item yang ditampilkan di halaman tersebut (per page)
-#         offset = (page -1) * page_size
-#         query = query.limit(page_size).offset(offset)
-
-#         # 4. Get the results.
-#         results = query.stream()
-#         logs = [Log(**doc.to_dict()) for doc in results]
-
-#         return logs
+class LogRepository:
+    def __init__(
+        self,
+        db: AsyncIOMotorDatabase = Depends(get_db_connection),
+        logs_collection: AsyncIOMotorCollection = Depends(get_logs_collection)
+    ):
+        self.db = db
+        self.logs_collection = logs_collection
     
-#     async def count_list_log(
-#             self,
-#             node_location: Optional[str] = None,
-#             node_status: Optional[bool] = None,
-#     ) -> int:
-#         query = self.log_ref
-
-#         # 1. Collect filter data if any.
-#         if node_location is not None:
-#             query = query.where(filter=FieldFilter("node_location", "==", node_location))
-#         if node_status is not None:
-#             query = query.where(filter=FieldFilter("node_status", "==", node_status))
-
-#         # 2. Count the documents.
-#         docs = query.stream()
-
-#         # 3. Count the number of documents.
-#         count = sum(1 for _ in docs)
-
-#         return count
+    async def get_all_logs(
+        self,
+        filters: Dict[str, Any],
+        skip: int = 0,
+        limit: int = 10,
+    ) -> List[LogModel]:
+        cursor = (
+            self.logs_collection
+            .find(filters or {})
+            .sort("created_at", DESCENDING)
+            .skip(skip)
+            .limit(limit)
+        )
+        logs = await cursor.to_list(length=limit)
+        return [LogModel(**log) for log in logs]
     
-#     async def get_filter_options(self) -> FilterOption:
-#         # 1. Stream the documents from the collection.
-#         docs = self.log_ref.stream()
+    async def delete_log(self, node_codename: str, firmware_version: Optional[str] = None) -> int:
+        if firmware_version:
+            result = await self.logs_collection.delete_one({
+                "node_codename": node_codename,
+                "firmware_version": firmware_version
+            })
+        else:
+            result = await self.logs_collection.delete_many({"node_codename": node_codename})
 
-#         # 2. Initialize empty lists for node_id and node_location.
-#         node_locations = set()
-#         node_statuses = set()
-
-#         # 3. Iterate through the documents and collect node_id and node_location.
-#         for doc in docs:
-#             data = doc.to_dict()
-#             node_locations.add(data["node_location"])
-#             node_statuses.add(data["node_status"])
-
-#         # 4. Convert sets to lists and sort them.
-#         node_locations = sorted(list(node_locations))
-#         node_statuses = sorted(list(node_statuses))
-
-#         # 5. Return the filter options as a dictionary.
-#         return{
-#             "node_location": node_locations,
-#             "node_status": node_statuses
-#         }
+        return result.deleted_count
     
-#     async def add_log(self, log: InputLog, node_name:str):
-#         try:
-#             log_data = log.model_dump()
-#             log_data["latest_updated"] = datetime.now(timezone.tzname(env.TIMEZONE))
+    async def count_logs(self, filters: Dict[str, Any]) -> int:
+        return await self.logs_collection.count_documents(filters)
+    
+    async def get_filter_options(self) -> LogFilterOptions:
+        pipeline = [
+            {"$group": {
+                "_id": None,
+                "node_location": {"$addToSet": "$node_location"},
+                "node_type": {"$addToSet": "$node_type"},
+                "flash_status": {"$addToSet": "$flash_status"}
+            }},
+            {"$project": {
+                "_id": 0,
+                "node_location": 1,
+                "node_type": 1,
+                "flash_status": 1
+            }}
+        ]
 
-#             # Simpan log ke Firestore
-#             await self.log_ref.document(node_name).set(log_data, merge=True)
-
-#             return {"message": f"Log Added successfully to {node_name}."}
+        result = await self.logs_collection.aggregate(pipeline).to_list(length=1)
+        if result:
+            return LogFilterOptions(**result[0])
         
-#         except Exception as e:
-#             raise HTTPException(status_code=500, detail=str(e))
+        # Return empty lists if not have result
+        return LogFilterOptions(
+            node_locations=[],
+            node_types=[],
+            flash_statuses=[]
+        )

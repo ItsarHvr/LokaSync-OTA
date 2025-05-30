@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 from models.node import NodeModel
 from schemas.common import (
@@ -55,7 +55,7 @@ class NodeCreateSchema(BaseModel):
         json_schema_extra = {
             "example": {
                 "node_location": "Cibubur-SayuranPagi",
-                "node_type": "Penyemaian",
+                "node_type": "Pembibitan",
                 "node_id": "1a",
                 "description": "This is a description of the location.",
             }
@@ -77,8 +77,8 @@ class NodeModifyVersionSchema(BaseModel):
         max_length=20,
         description="Firmware version in x.y format (e.g., 1.0)"
     )
-    firmware_url: Optional[str] = Field(
-        default=None,
+    firmware_url: str = Field(
+        ...,
         min_length=15,
         pattern=r'^https?://.*$',
         description="Direct URL to the firmware file (provide if not uploading a file)"
@@ -103,9 +103,10 @@ class NodeResponse(BaseAPIResponse, BasePagination):
     Response schema for a location.
     Contains the location details and an optional description.
     """
-    filter_options: Optional[BaseFilterOptions] = None
-    data: List[NodeModel]
-    
+    filter_options: BaseFilterOptions = {}
+    data: List[NodeModel] = []
+
+
     class Config:
         """
         Configuration for the ResponseLocation schema.
@@ -113,31 +114,31 @@ class NodeResponse(BaseAPIResponse, BasePagination):
         """
         json_schema_extra = {
             "example": {
-                "message": "Success",
+                "message": "List of nodes retrieved successfully",
                 "status_code": 200,
                 "page": 1,
                 "page_size": 10,
                 "total_data": 0,
                 "total_page": 1,
                 "filter_options": {
-                    "node_location": [
+                    "node_locations": [
                         "Kebun Cibubur",
                         "Kebun Bogor"
                     ],
-                    "node_type": [
+                    "node_types": [
                         "Penyemaian",
                         "Pembibitan"
                     ]
                 },
                 "data": [
                     {
-                        "id": "123456789",
+                        "_id": "123456789",
                         "created_at": "2023-10-01T12:00:00+07:00",
                         "latest_updated": "2023-10-01T12:00:05+07:00",
                         "node_location": "Cibubur-SayuranPagi",
-                        "node_type": "Penyemaian",
+                        "node_type": "Pembibitan",
                         "node_id": "1a",
-                        "node_codename": "cibubur-sayuranpagi_penyemaian_1a",
+                        "node_codename": "cibubur-sayuranpagi_pembibitan_1a",
                         "description": "This is a description of the location.",
                         "firmware_url": "https://example.com/firmware/example.ino.bin",
                         "firmware_version": "1.0"
@@ -150,18 +151,20 @@ class NodeResponse(BaseAPIResponse, BasePagination):
 class SingleNodeResponse(BaseAPIResponse):
     data: Optional[NodeModel] = None
 
-    
+
     class Config:
         json_schema_extra = {
             "example": {
+                "message": "Detail node retrieved successfully",
+                "status_code": 200,
                 "data": {
-                    "id": "123456789",
+                    "_id": "123456789",
                     "created_at": "2023-10-01T12:00:00+07:00",
                     "latest_updated": "2023-10-01T12:00:05+07:00",
                     "node_location": "Cibubur-SayuranPagi",
-                    "node_type": "Penyemaian",
+                    "node_type": "Pembibitan",
                     "node_id": "1a",
-                    "node_codename": "cibubur-sayuranpagi_penyemaian_1a",
+                    "node_codename": "cibubur-sayuranpagi_pembibitan_1a",
                     "description": "This is a description of the location.",
                     "firmware_url": "https://example.com/firmware/example.ino.bin",
                     "firmware_version": "1.0"
@@ -171,7 +174,8 @@ class SingleNodeResponse(BaseAPIResponse):
 
 
 class FirmwareVersionListResponse(BaseAPIResponse):
-    data: List[str] = []
+    data: Optional[List[str]] = None
+
 
     class Config:
         json_schema_extra = {

@@ -9,95 +9,52 @@ from utils.datetime import set_default_timezone, convert_datetime_to_str
 
 
 class LogModel(BaseModel):
-    """
-    A Pydantic model representing a log document in MongoDB.
-
-        Data sent from ESP devices to backend through MQTTS broker, then from backend to database.
-        ... means this field is required.
-    """
-    id: Optional[PyObjectId] = Field(
+    id: Optional[PyObjectId] = Field(alias="_id")
+    created_at: datetime = Field(..., default_factory=set_default_timezone)
+    session_id: str = Field(
         ...,
-        default_factory=None,
-        alias="_id",
-        description="Unique identifier for the log document"
+        min_length=1,
+        max_length=255
     )
-    # Additional log data from backend
-    created_at: datetime = Field(
+    node_mac: str = Field(
         ...,
-        default_factory=set_default_timezone,
-        description="Timestamp when the log document was created"
+        min_length=12,
     )
-    latest_updated: Optional[datetime] = Field(
-        ...,
-        default_factory=set_default_timezone,
-        description="Timestamp when the log document was last updated"
-    )
-    # General log data
-    greeenhouse_location: str = Field(
+    node_location: str = Field(
         ...,
         min_length=3,
-        description="Location of the node that this log is associated with"
+        max_length=255,
     )
-    greenhouse_name: str = Field(
+    node_type: str = Field(
         ...,
         min_length=3,
-        description="Specific location within the greenhouse that this log is associated with", 
-    )
-    room_name: str = Field(
-        ...,
-        min_length=3,
-        description="Name of the room within the greenhouse location"
-    )
-    room_id: str = Field(
-        ...,
-        min_length=2,
-        description="Unique identifier for the room within the greenhouse location"
+        max_length=255,
     )
     node_id: str = Field(
         ...,
+        min_length=1,
+        max_length=255,
+    )
+    node_codename: str = Field(
+        ...,
         min_length=3,
-        description="A unique name for the node that this log is associated with",
+        max_length=255
     )
-    first_version: str = Field(
+    firmware_version: str = Field(
         ...,
-        max_length=8,
-        description="First version of the firmware associated with this log"
+        min_length=3,
+        max_length=10
     )
-    latest_version: Optional[str] = Field(
-        default=None,
-        max_length=11,
-        description="Latest version of the firmware associated with this log"
-    )
-    firmware_url: str = Field(
-        ...,
-        description="URL to download the firmware binary file associated with this log",
-    )
+
     # For QoS purpose
-    firmware_size: int = Field(
-        ...,
-        ge=0,
-        description="Size of the firmware file in bytes"
-    )
-    download_speed: float = Field(
-        ...,
-        ge=0.0,
-        description="Download speed of the firmware file in bytes per second"
-    )
-    download_completed: datetime = Field(
-        ...,
-        default_factory=set_default_timezone,
-        description="Timestamp when the firmware download was completed"
-    )
-    download_duration: float = Field(
-        ...,
-        ge=0.0,
-        description="Duration of the firmware download in seconds",
-    )
-    flash_completed: Optional[datetime] = Field(
-        default_factory=set_default_timezone,
-        description="Timestamp when the firmware flashing was completed"
-    )
-    flash_status: LogStatus = Field(..., description="Status of the firmware flashing process")
+    download_started_at: Optional[datetime] = Field(default=None) # OTA update started
+    firmware_size_kb: Optional[float] = Field(default=None) # Firmware size OK
+    bytes_written: Optional[int] = Field(default=None) # Firmware bytes written
+    download_duration_sec: Optional[float] = Field(default=None) # Download time (s)
+    download_speed_kbps: Optional[float] = Field(default=None) # Download speed (kB/s)
+    download_completed_at: Optional[datetime] = Field(default=None) # Download complete
+    flash_completed_at: Optional[datetime] = Field(default=None) # OTA update complete
+    flash_status: Optional[LogStatus] = Field(default=LogStatus.IN_PROGRESS) # OTA update complete
 
 
     class Config:
@@ -105,34 +62,32 @@ class LogModel(BaseModel):
         Configuration for the Log Model.
         
         Settings:
+            validate_assignment: Ensures that field values are validated when assigned.
+            populate_by_name: Allows the model to populate fields using the field's alias.
             validate_by_name: Allows the model to populate fields using the field's alias.
             arbitrary_types_allowed: Allows the use of arbitrary Python types like ObjectId.
             json_encoders: Custom JSON encoder for ObjectId to convert it to a string.
         """
-        validate_by_name = True
+        validate_assignment = True
+        populate_by_name = True
         arbitrary_types_allowed = True
-        json_encoders = {
-            ObjectId: str,
-            datetime: convert_datetime_to_str
-        }
+        json_encoders = { ObjectId: str, datetime: convert_datetime_to_str }
         json_schema_extra = {
             "example": {
-                "id": "123456789",
+                "_id": "123456789",
                 "created_at": "2023-10-01T12:00:00+07:00",
-                "latest_updated": "2023-10-01T12:00:05+07:00",
-                "greeenhouse_location": "Kebun Cibubur",
-                "greenhouse_name": "Sayuran Pagi",
-                "room_name": "Penyemaian",
-                "room_id": "1a",
-                "node_id": "kebun-cibubur_sayuran-pagi_penyemaian_room-1a",
-                "first_version": "1.0.0",
-                "latest_version": "1.0.1",
-                "firmware_url": "http://example.com/firmware.ino.bin",
-                "firmware_size": 102400,
-                "download_speed": 20480.0,
-                "download_completed": "2023-10-01T12:00:00+07:00",
-                "download_duration": 5.0,
-                "flash_completed": "2023-10-01T12:00:05+07:00",
-                "flash_status": str(LogStatus.SUCCESS)
+                "session_id": "session-123456789",
+                "node_mac": "00:1A:2B:3C:4D:5E",
+                "node_location": "Cibubur-SayuranPagi",
+                "node_type": "Pembibitan",
+                "node_id": "1a",
+                "node_codename": "cibubur-sayuranpagi_pembibitan_1a",
+                "firmware_version": "1.0",
+                "download_started_at": "2023-10-01T12:00:00+07:00",
+                "firmware_size_kb": 1023.375,
+                "bytes_written": 1047936,
+                "download_speed_kbps": 20480.0,
+                "download_completed_at": "2023-10-01T12:00:00+07:00",
+                "flash_status": str(LogStatus.IN_PROGRESS)
             }
         }

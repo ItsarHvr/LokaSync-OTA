@@ -1,4 +1,10 @@
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import (
+    APIRouter,
+    status,
+    Request,
+    Response,
+    Depends
+)
 
 from schemas.monitoring import ListNodeResponse
 from services.monitoring import MonitoringService
@@ -8,11 +14,7 @@ from cores.config import env
 
 router_monitoring = APIRouter()
 
-@router_monitoring.get(
-    "/",
-    response_model=ListNodeResponse,
-    description="Get a list of unique node locations, types, and IDs",
-)
+@router_monitoring.get("/", response_model=ListNodeResponse)
 @limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_MINUTE}/minute")
 @limiter.limit(f"{env.MIDDLEWARE_RATE_LIMIT_REQUEST_PER_HOUR}/hour")
 async def get_list_nodes(
@@ -20,14 +22,11 @@ async def get_list_nodes(
     response: Response,
     service: MonitoringService = Depends(),
     current_user: dict = Depends(get_current_user)
-):
-    """
-    Get a list of unique node locations, types, and IDs from the database.
-    """
-    result = await service.get_list_nodes()
+) -> ListNodeResponse:
+    nodes = await service.get_list_nodes()
 
     return ListNodeResponse(
         message="List of nodes retrieved successfully",
-        status_code=200,
-        data=result
+        status_code=status.HTTP_200_OK,
+        data=nodes
     )
