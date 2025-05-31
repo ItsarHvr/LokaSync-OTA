@@ -1,7 +1,6 @@
 import paho.mqtt.client as mqtt
 import asyncio
 import json
-from pprint import pprint
 from motor.motor_asyncio import AsyncIOMotorCollection
 
 from cores.config import env
@@ -11,6 +10,7 @@ from utils.datetime import get_current_datetime
 from enums.log import LogStatus
 from repositories.log import LogRepository
 from services.log import LogService
+from utils.logger import logger
 
 
 """NOTE:
@@ -20,7 +20,10 @@ So, from the MQTT publisher (ESP32) -> send log update -> backend subs -> save t
 Otherwise, for Monitoring data sensor it will be handled by the frontend (React) directly,
 and also for push action start ota update.
 """
-def subscribe_message(client: mqtt.Client | None, main_loop: asyncio.AbstractEventLoop = None) -> None:
+def subscribe_message(
+    client: mqtt.Client | None,
+    main_loop: asyncio.AbstractEventLoop = None
+) -> None:
     """
     Subscribe to MQTT messages and process OTA log updates.
     
@@ -36,7 +39,7 @@ def subscribe_message(client: mqtt.Client | None, main_loop: asyncio.AbstractEve
         try:
             payload = msg.payload.decode()
             log_data = json.loads(payload)
-            pprint(f"🆗 Message received: {log_data}")
+            logger.mqtt_debug(f"Message received: {log_data}")
 
             # Extract required information
             required_fields = [
@@ -49,7 +52,7 @@ def subscribe_message(client: mqtt.Client | None, main_loop: asyncio.AbstractEve
             for field in required_fields:
                 value = log_data.get(field)
                 if not value:
-                    print(f"❌ Missing required field: {field}")
+                    logger.mqtt_error(f"Missing required field: {field}")
                     return
                 extracted_data[field] = value
 
@@ -90,9 +93,9 @@ def subscribe_message(client: mqtt.Client | None, main_loop: asyncio.AbstractEve
             # Apply message-specific updates
             if message in message_handlers:
                 update_fields.update(message_handlers[message])
-                print(f"📝 Processing message: '{message}' -> {list(update_fields.keys())}")
+                logger.mqtt_info(f"Processing message: '{message}' -> {list(update_fields.keys())}")
             else:
-                print(f"⚠️ Unknown message type: '{message}' - skipping update")
+                logger.mqtt_warning(f"Unknown message type: '{message}' - skipping update")
                 return
 
             # Process the log asynchronously
@@ -122,11 +125,11 @@ def subscribe_message(client: mqtt.Client | None, main_loop: asyncio.AbstractEve
                     )
                     
                     if result_log:
-                        print(f"✅ Log processed successfully - ID: {result_log.id}")
+                        logger.db_info(f"Log processed successfully - Codename: '{result_log.node_codename}'")
                     else:
-                        print("❌ Failed to process log data.")
+                        logger.db_error("Failed to process log data.")
                 except Exception as e:
-                    print(f"❌ Error during MongoDB upsert: {str(e)}")
+                    logger.db_error(f"Error during MongoDB upsert: {str(e)}")
 
             # Run the upsert operation in the main event loop
             future = asyncio.run_coroutine_threadsafe(upsert_log(), main_loop)
@@ -135,27 +138,27 @@ def subscribe_message(client: mqtt.Client | None, main_loop: asyncio.AbstractEve
                 try:
                     fut.result()
                 except Exception as exc:
-                    print(f"❌ MongoDB upsert failed: {str(exc)}")
+                    logger.mqtt_error(f"MongoDB upsert failed: {str(exc)}")
 
             future.add_done_callback(_log_result)
             
         except KeyError as e:
-            print(f"❌ Missing key in log data: {str(e)}")
+            logger.mqtt_error(f"Missing key in log data: {str(e)}")
         except json.JSONDecodeError as e:
-            print(f"❌ JSON decode error: {str(e)}")
+            logger.mqtt_error(f"JSON decode error: {str(e)}")
         except Exception as e:
-            print(f"❌ Error processing message: {str(e)}")
+            logger.mqtt_error(f"Error processing message: {str(e)}")
 
     # Check if the MQTT client is initialized
     if client is None:
-        print("❌ MQTT client is not initialized.") 
+        logger.mqtt_error("MQTT client is not initialized.")
         return
 
     # Subscribe to the log topic
     if not client.is_connected():
-        print("❌ MQTT client is not connected to the broker.")
+        logger.mqtt_error("MQTT client is not connected to the broker.")
         return
 
-    print(f"🔗 Subscribing to topic: {env.MQTT_SUBSCRIBE_TOPIC_LOG} with QoS {env.MQTT_DEFAULT_QOS}")    
+    logger.mqtt_info(f"Subscribing to topic: {env.MQTT_SUBSCRIBE_TOPIC_LOG} with QoS {env.MQTT_DEFAULT_QOS}")
     client.subscribe(env.MQTT_SUBSCRIBE_TOPIC_LOG, qos=env.MQTT_DEFAULT_QOS)
     client.on_message = on_message

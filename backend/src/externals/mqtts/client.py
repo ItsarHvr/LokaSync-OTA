@@ -2,6 +2,7 @@ import paho.mqtt.client as mqtt
 from os.path import join, dirname
 
 from cores.config import env
+from utils.logger import logger
 
 ca_cert = join(dirname(__file__), "../../../", env.MQTT_BROKER_CA_CERT_NAME)
 
@@ -11,25 +12,21 @@ def check_mqtt_credentials(ca_cert: str) -> bool:
     """
     try:
         with open(ca_cert, 'r'):
-            print("✅ MQTT broker CA certificate file found.")
-
+            logger.mqtt_info("MQTT broker CA certificate file found")
         return True
     except FileNotFoundError:
-        print(f"❌ MQTT broker CA certificate file not found: {ca_cert}")
+        logger.mqtt_error(f"MQTT broker CA certificate file not found: {ca_cert}")
         return False
 
 def connect_mqtt_client() -> mqtt.Client | None:
     def on_connect(client, userdata, flags, rc, properties=None):
         if rc == 0:
-            print("✅ Connected to MQTT Broker!")
+            logger.mqtt_info("Connected to MQTT Broker!")
         else:
-            print(f"❌ Failed to connect, return code: {rc}\n")
+            logger.mqtt_error(f"Failed to connect, return code: {rc}")
 
     def on_disconnect(client, userdata, rc, properties=None, reason_code=None):
-        if rc != 0:
-            print("❌ Unexpected disconnection from MQTT Broker!")
-        else:
-            print("✅ Disconnected from MQTT Broker.")
+        logger.mqtt_info("Disconnected from MQTT Broker")
     
     try:
         client = mqtt.Client(
@@ -59,5 +56,5 @@ def connect_mqtt_client() -> mqtt.Client | None:
     
         return client
     except Exception as e:
-        print(f"❌ Failed to connect to MQTT Broker: {str(e)}")
+        logger.mqtt_error(f"Failed to connect to MQTT Broker: {str(e)}")
         return None

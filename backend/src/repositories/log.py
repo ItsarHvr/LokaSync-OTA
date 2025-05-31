@@ -14,6 +14,7 @@ from cores.dependencies import (
     get_logs_collection
 )
 from utils.datetime import get_current_datetime
+from utils.logger import logger
 
 
 class LogRepository:
@@ -44,7 +45,7 @@ class LogRepository:
                     filter_query,
                     {"$set": update_fields}
                 )
-                print("📝 Log updated in MongoDB.")
+                logger.db_info("Log updated in MongoDB")
 
                 # Fetch updated log document
                 updated_log = await self.logs_collection.find_one(filter_query)
@@ -78,13 +79,13 @@ class LogRepository:
             
                 # Insert without _id (MongoDB will generate it)
                 result = await self.logs_collection.insert_one(insert_data)
-                print(f"🆕 Log inserted into MongoDB with inserted id {result.inserted_id}")
+                logger.db_info(f"Log inserted into MongoDB with ID: {result.inserted_id}")
 
                 # Add the generated _id to the inserted log data
                 insert_data["_id"] = result.inserted_id
                 return LogModel(**insert_data)
         except Exception as e:
-            print(f"❌ MongoDB upsert failed: {str(e)}")
+            logger.db_error(f"MongoDB upsert failed: {str(e)}")
             return None
 
     async def get_all_logs(

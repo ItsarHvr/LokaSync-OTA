@@ -15,7 +15,7 @@ from utils.validator import (
 
 
 class NodeModel(BaseModel):
-    id: Optional[PyObjectId] = Field(alias="_id")
+    id: PyObjectId = Field(..., alias="_id")
     created_at: datetime = Field(..., default_factory=get_current_datetime)
     latest_updated: datetime = Field(..., default_factory=get_current_datetime)
     node_location: str = Field(

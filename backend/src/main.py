@@ -7,6 +7,7 @@ import asyncio
 from cores.config import env
 from cores.database import start_mongodb_connection, stop_mongodb_connection
 from cores.exceptions import validation_exception_handler, http_exception_handler
+from utils.logger import logger
 
 from routers.v1.index import router_index
 from routers.v1.health import router_health
@@ -24,58 +25,58 @@ async def _lifespan(_app: FastAPI):
     Lifespan event handler for the FastAPI application.
     This is used to perform startup and shutdown tasks.
     """
-    print("🚀 LokaSync OTA Backend: Lifespan startup...")
+    logger.system_info("LokaSync OTA Backend: Lifespan startup...")
 
     # ---- Startup tasks ----
     # Task 1: Check MongoDB connection
-    print("\n🔗 [TASK 1]: Checking MongoDB connection...")
+    logger.system_info("[TASK 1]: Checking MongoDB connection...")
     db_connected = False
     try:
         db_connected = await start_mongodb_connection()
         if db_connected:
-            print("✅ MongoDB connection is alive.")
+            logger.db_info("MongoDB connection is alive")
             db_connected = True
         else:
-            print("❌ MongoDB connection failed.")
+            logger.db_error("MongoDB connection failed")
     except Exception as e:
-        print(f"❌ Error checking MongoDB connection: {str(e)}.")
+        logger.db_error("Error checking MongoDB connection", e)
     
     # Task 2: Start MQTT service
-    print("\n🔗 [TASK 2]: Starting MQTT service...")
+    logger.system_info("[TASK 2]: Starting MQTT service...")
     loop = asyncio.get_running_loop()
     mqtt_client_connected = await loop.run_in_executor(None, start_mqtt_service, loop)
 
     if mqtt_client_connected:
-        print("✅ MQTT service started and client is connected (running in background).")
+        logger.mqtt_info("MQTT service started and client is connected (running in background)")
     else:
-        print("❌ Failed to start MQTT service.")
+        logger.mqtt_error("Failed to start MQTT service")
     
     # Task 3: Initialize Firebase Admin SDK
-    print("\n🔐 [TASK 3]: Initializing Firebase...")
+    logger.system_info("[TASK 3]: Initializing Firebase...")
     init_firebase_app()
     
-    print("\n✅ LokaSync OTA Backend: Lifespan startup sequence finished.")
+    logger.system_info("LokaSync OTA Backend: Lifespan startup sequence finished")
 
     yield # application runs here
 
     # ---- Shutdown tasks ----
-    print("🔄 LokaSync OTA Backend: Lifespan shutdown...")
+    logger.system_info("LokaSync OTA Backend: Lifespan shutdown...")
     # Task 1: Stop MongoDB connection
     try:
         if db_connected:
             await stop_mongodb_connection()
-            print("\n✅ [TASK 1]: MongoDB connection closed successfully.")
+            logger.db_info("[TASK 1]: MongoDB connection closed successfully")
     except Exception as e:
-        print(f"\n❌ [TASK 1]: Error closing MongoDB connection: {str(e)}.")
+        logger.db_error("[TASK 1]: Error closing MongoDB connection", e)
     
     # Task 2: Stop MQTT service
     if mqtt_client_connected:
         await loop.run_in_executor(None, stop_mqtt_service)
-        print("\n✅ [TASK 2]: MQTT service stopped successfully.")
+        logger.mqtt_info("[TASK 2]: MQTT service stopped successfully")
     else:
-        print("\n⚠️  [TASK 2]: MQTT service was not running or already stopped.")
+        logger.mqtt_warning("[TASK 2]: MQTT service was not running or already stopped")
     
-    print("\n✅ LokaSync OTA Backend: Lifespan shutdown completed.")
+    logger.system_info("LokaSync OTA Backend: Lifespan shutdown completed")
 
 
 ##### Initialize FastAPI application #####
@@ -109,3 +110,5 @@ app.include_router(router_health, tags=["Health Check"])
 app.include_router(router_node, prefix=f"{API_VERSION}/node", tags=["Node Management"])
 app.include_router(router_monitoring, prefix=f"{API_VERSION}/monitoring", tags=["Monitoring Nodes"])
 app.include_router(router_log, prefix=f"{API_VERSION}/log", tags=["OTA Update Logs"])
+
+logger.system_info(f"FastAPI application initialized - Docs: {API_VERSION}/docs")

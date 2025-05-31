@@ -1,0 +1,29 @@
+[{
+  "_id": {
+    "$oid": "683ad771cfa8439596edccce"
+  },
+  "session_id": "123456789",
+  "node_mac": "CCDBA716CFA4",
+  "node_location": "Cibubur-SayuranPagi",
+  "node_type": "Pembibitan",
+  "node_id": "1a",
+  "node_codename": "cibubur-sayuranpagi_pembibitan_1a",
+  "firmware_version": "1.0",
+  "download_started_at": {
+    "$date": "2025-05-31T10:18:25.925Z"
+  },
+  "flash_status": "success",
+  "firmware_size_kb": 1023.375,
+  "bytes_written": 1047936,
+  "download_duration_sec": 26.677,
+  "download_speed_kbps": 38.3617,
+  "download_completed_at": {
+    "$date": "2025-05-31T10:35:27.526Z"
+  },
+  "flash_completed_at": {
+    "$date": "2025-05-31T10:35:33.705Z"
+  },
+  "created_at": {
+    "$date": "2025-05-31T10:18:25.933Z"
+  }
+}]

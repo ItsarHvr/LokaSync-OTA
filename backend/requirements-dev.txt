@@ -30,5 +30,5 @@ google-auth-oauthlib
 
 # Others
 python-dotenv
-colorlog
+colorama # logger color
 pytz
