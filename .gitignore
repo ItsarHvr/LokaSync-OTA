@@ -450,7 +450,7 @@ mqtt-broker-*.pem
 mqtt-broker-*.crt
 ca*.pem
 ca*.crt
-emqxsl-*.crt
+emqxsl-ca.crt
 
 # Temporary folders to store firmware files.
 temp/
