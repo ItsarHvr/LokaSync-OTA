@@ -180,6 +180,8 @@ class FirmwareVersionListResponse(BaseAPIResponse):
     class Config:
         json_schema_extra = {
             "example": {
+                "message": "List of firmware versions retrieved successfully",
+                "status_code": 200,
                 "data": [
                     "1.0",
                     "1.1",
