@@ -4,6 +4,7 @@ from typing import Dict, Any, Optional, List
 from models.log import LogModel
 from schemas.log import LogFilterOptions
 from repositories.log import LogRepository
+from utils.logger import logger
 
 
 class LogService:
@@ -12,7 +13,7 @@ class LogService:
         logs_repository: LogRepository = Depends(),
     ):
         self.logs_repository = logs_repository
-    
+
     async def upsert_log_from_mqtt(
         self,
         session_id: str,
@@ -29,6 +30,8 @@ class LogService:
         Upsert log entry in MongoDB.
         Returns LogModel with proper _id if successful, None otherwise.
         """
+        logger.api_info(f"Service: Upserting log from MQTT for node '{node_codename}' - Version: {firmware_version}")
+        
         filter_query = {
             "session_id": session_id,
             "node_mac": node_mac,
@@ -39,11 +42,18 @@ class LogService:
             "firmware_version": firmware_version
         }
         
-        return await self.logs_repository.upsert_log(
+        result = await self.logs_repository.upsert_log(
             filter_query=filter_query,
             update_fields=update_fields,
             log_data=log_data
         )
+        
+        if result:
+            logger.api_info(f"Service: Successfully upserted log for node '{node_codename}'")
+        else:
+            logger.api_error(f"Service: Failed to upsert log for node '{node_codename}'")
+            
+        return result
 
     async def get_all_logs(
         self,
@@ -51,19 +61,40 @@ class LogService:
         skip: int = 0,
         limit: int = 10
     ) -> List[LogModel]:
-        return await self.logs_repository.get_all_logs(filters=filters, skip=skip, limit=limit)
+        logger.api_info(f"Service: Retrieving logs - Skip: {skip}, Limit: {limit}, Filters: {filters}")
+        
+        logs = await self.logs_repository.get_all_logs(filters=filters, skip=skip, limit=limit)
+        
+        logger.api_info(f"Service: Retrieved {len(logs)} logs")
+        return logs
     
     async def delete_log(self, node_codename: str, firmware_version: Optional[str]) -> None:
+        logger.api_info(f"Service: Deleting log for node '{node_codename}' - Version: {firmware_version}")
+        
         node_exist = await self.logs_repository.get_node_by_codename(node_codename)
         if not node_exist:
+            logger.api_error(f"Service: No logs found for node '{node_codename}'")
             raise HTTPException(status_code=404, detail="Node not found.")
 
         deleted = await self.logs_repository.delete_log(node_codename, firmware_version)
         if not deleted:
+            logger.api_error(f"Service: No logs deleted for node '{node_codename}' - Version: {firmware_version}")
             raise HTTPException(status_code=404, detail="Firmware version not found.")
+        
+        logger.api_info(f"Service: Successfully deleted {deleted} log(s) for node '{node_codename}'")
 
     async def count_logs(self, filters: Dict[str, Any]) -> int:
-        return await self.logs_repository.count_logs(filters)
+        logger.api_info(f"Service: Counting logs with filters: {filters}")
+        
+        count = await self.logs_repository.count_logs(filters)
+        
+        logger.api_info(f"Service: Total logs count: {count}")
+        return count
 
     async def get_filter_options(self) -> LogFilterOptions:
-        return await self.logs_repository.get_filter_options()
+        logger.api_info("Service: Getting log filter options")
+        
+        options = await self.logs_repository.get_filter_options()
+        
+        logger.api_info(f"Service: Retrieved filter options - Locations: {len(options.node_locations)}, Types: {len(options.node_types)}, Statuses: {len(options.flash_statuses)}")
+        return options

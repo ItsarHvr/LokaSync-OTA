@@ -6,6 +6,7 @@ from cores.dependencies import (
     get_db_connection,
     get_nodes_collection
 )
+from utils.logger import logger
 
 
 class MonitoringRepository:
@@ -21,19 +22,34 @@ class MonitoringRepository:
         """
         Get list of node locations, types, and IDs.
         """
-        node_locations = sorted(await self.nodes_collection.distinct("node_location"))
-        node_types = sorted(await self.nodes_collection.distinct("node_type"))
-        node_ids = sorted(await self.nodes_collection.distinct("node_id"))
+        logger.db_info("Repository: Getting list of distinct node values")
+        
+        try:
+            node_locations = sorted(await self.nodes_collection.distinct("node_location"))
+            node_types = sorted(await self.nodes_collection.distinct("node_type"))
+            node_ids = sorted(await self.nodes_collection.distinct("node_id"))
 
-        if not node_locations and not node_types and not node_ids:
+            if not node_locations and not node_types and not node_ids:
+                logger.db_info("Repository: No nodes found in collection")
+                return {
+                    "node_locations": [],
+                    "node_types": [],
+                    "node_ids": []
+                }
+
+            result = {
+                "node_locations": node_locations,
+                "node_types": node_types,
+                "node_ids": node_ids
+            }
+            
+            logger.db_info(f"Repository: Retrieved distinct values - Locations: {len(node_locations)}, Types: {len(node_types)}, IDs: {len(node_ids)}")
+            return result
+            
+        except Exception as e:
+            logger.db_error("Repository: Failed to get list of nodes", e)
             return {
                 "node_locations": [],
                 "node_types": [],
                 "node_ids": []
             }
-
-        return {
-            "node_locations": node_locations,
-            "node_types": node_types,
-            "node_ids": node_ids
-        }
