@@ -1,6 +1,5 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from motor.motor_asyncio import AsyncIOMotorCollection
 
 from cores.config import env
 

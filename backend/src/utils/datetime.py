@@ -2,7 +2,7 @@ from datetime import datetime
 from pytz import timezone
 from cores.config import env
 
-def set_default_timezone() -> datetime:
+def get_current_datetime() -> datetime:
     return datetime.now(timezone(env.TIMEZONE))
 
 def convert_datetime_to_str(dt: datetime, tz: str = env.TIMEZONE) -> str:

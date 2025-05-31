@@ -6,6 +6,7 @@ from schemas.common import BaseFilterOptions
 from schemas.node import NodeCreateSchema, NodeModifyVersionSchema
 from models.node import NodeModel
 
+
 class NodeService:
     def __init__(self, nodes_repository: NodeRepository = Depends()):
         self.nodes_repository = nodes_repository

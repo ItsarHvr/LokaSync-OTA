@@ -7,7 +7,7 @@ from cores.dependencies import get_db_connection, get_nodes_collection
 from models.node import NodeModel
 from schemas.common import BaseFilterOptions
 from schemas.node import NodeCreateSchema
-from utils.datetime import set_default_timezone
+from utils.datetime import get_current_datetime
 from utils.validator import set_codename
 
 
@@ -27,7 +27,7 @@ class NodeRepository:
         if node_exist:
             return None
 
-        now = set_default_timezone()
+        now = get_current_datetime()
         doc = node_data.model_dump(exclude_none=True)
         doc.update({
             "node_codename": node_codename,
@@ -50,7 +50,7 @@ class NodeRepository:
         firmware_version: str
     ) -> Optional[NodeModel]:
         node = await self.nodes_collection.find_one({"node_codename": node_codename})
-        now = set_default_timezone()
+        now = get_current_datetime()
 
         # Check if this firmware version already exists for a specific node
         version_exist = await self.nodes_collection.find_one({
@@ -98,7 +98,7 @@ class NodeRepository:
         description: str,
         firmware_version: Optional[str]
     ) -> Optional[NodeModel]:
-        now = set_default_timezone()
+        now = get_current_datetime()
         filter_query = {"node_codename": node_codename}
         if firmware_version:
             filter_query["firmware_version"] = firmware_version

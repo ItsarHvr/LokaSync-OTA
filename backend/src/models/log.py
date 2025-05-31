@@ -5,12 +5,12 @@ from bson import ObjectId
 
 from models.common import PyObjectId
 from enums.log import LogStatus
-from utils.datetime import set_default_timezone, convert_datetime_to_str
+from utils.datetime import get_current_datetime, convert_datetime_to_str
 
 
 class LogModel(BaseModel):
-    id: Optional[PyObjectId] = Field(alias="_id")
-    created_at: datetime = Field(..., default_factory=set_default_timezone)
+    id: PyObjectId = Field(..., alias="_id")
+    created_at: datetime = Field(..., default_factory=get_current_datetime)
     session_id: str = Field(
         ...,
         min_length=1,

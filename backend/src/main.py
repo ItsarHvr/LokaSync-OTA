@@ -42,8 +42,8 @@ async def _lifespan(_app: FastAPI):
     
     # Task 2: Start MQTT service
     print("\n🔗 [TASK 2]: Starting MQTT service...")
-    loop = asyncio.get_event_loop()
-    mqtt_client_connected = await loop.run_in_executor(None, start_mqtt_service)
+    loop = asyncio.get_running_loop()
+    mqtt_client_connected = await loop.run_in_executor(None, start_mqtt_service, loop)
 
     if mqtt_client_connected:
         print("✅ MQTT service started and client is connected (running in background).")

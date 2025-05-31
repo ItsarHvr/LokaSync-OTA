@@ -1,15 +1,15 @@
 import paho.mqtt.client as mqtt
+import asyncio
 import time
 
 from externals.mqtts.client import connect_mqtt_client
 from externals.mqtts.subscribe import subscribe_message
-from externals.mqtts.publish import publish_message
 
 _mqtt_client_instance: mqtt.Client | None = connect_mqtt_client()
 
-def start_mqtt_service() -> bool:
+def start_mqtt_service(main_loop: asyncio.AbstractEventLoop = None) -> bool:
     """
-    onnects to MQTT, starts its loop in a background thread, and subscribes to topics.
+    Connects to MQTT, starts its loop in a background thread, and subscribes to topics.
     Returns True if successful, False otherwise.
     """
     global _mqtt_client_instance
@@ -23,8 +23,7 @@ def start_mqtt_service() -> bool:
             time.sleep(0.5)
         
         if _mqtt_client_instance.is_connected():
-            subscribe_message(_mqtt_client_instance)
-            publish_message(_mqtt_client_instance)
+            subscribe_message(_mqtt_client_instance, main_loop)
             return True
         
         print("❌ Failed to connect to MQTT Broker within the timeout period.")

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List, Dict
+from typing import Optional, List
 
 from models.node import NodeModel
 from schemas.common import (

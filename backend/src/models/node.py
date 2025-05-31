@@ -5,7 +5,7 @@ from bson import ObjectId
 
 from models.common import PyObjectId
 from utils.datetime import (
-    set_default_timezone,
+    get_current_datetime,
     convert_datetime_to_str
 )
 from utils.validator import (
@@ -16,8 +16,8 @@ from utils.validator import (
 
 class NodeModel(BaseModel):
     id: Optional[PyObjectId] = Field(alias="_id")
-    created_at: datetime = Field(..., default_factory=set_default_timezone)
-    latest_updated: datetime = Field(..., default_factory=set_default_timezone)
+    created_at: datetime = Field(..., default_factory=get_current_datetime)
+    latest_updated: datetime = Field(..., default_factory=get_current_datetime)
     node_location: str = Field(
         ...,
         min_length=3,
