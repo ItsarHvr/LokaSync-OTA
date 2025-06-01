@@ -69,15 +69,17 @@ class _ProfileState extends State<Profile> {
   }
 
   // Method untuk menangani navigasi bottom bar
-  void _onItemTapped(int index) {
-    if (index == _currentIndex) return;
-    
-    if (index == 0) {
-      Navigator.pushReplacementNamed(context, '/home');
-    } else if (index == 1) {
-      Navigator.pushReplacementNamed(context, '/monitoring');
-    }
+void _onItemTapped(int index) {
+  if (index == _currentIndex) return;
+
+  if (index == 0) {
+    Navigator.pushReplacementNamed(context, '/home');
+  } else if (index == 1) {
+    Navigator.pushReplacementNamed(context, '/monitoring');
+  } else if (index == 3) {
+    Navigator.pushReplacementNamed(context, '/ota-update');
   }
+}
 
   @override
   void dispose() {

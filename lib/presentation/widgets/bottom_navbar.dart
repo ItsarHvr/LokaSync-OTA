@@ -36,6 +36,7 @@ class BottomNavBar extends StatelessWidget {
             _buildNavItem(0, Icons.home_outlined, Icons.home, 'Home'),
             _buildNavItem(1, Icons.monitor_heart_outlined, Icons.monitor_heart, 'Monitoring'),
             _buildNavItem(2, Icons.person_outline, Icons.person, 'Profile'),
+            _buildNavItem(3, Icons.system_update_alt_outlined, Icons.system_update_alt, 'Local-OTA'),
           ],
         ),
       ),
@@ -51,6 +52,7 @@ class BottomNavBar extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: isSelected 
             ? BoxDecoration(
+                // ignore: deprecated_member_use
                 color: const Color(0xFF014331).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(20),
               )

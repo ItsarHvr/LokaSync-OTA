@@ -28,6 +28,9 @@ dependencies:
   fl_chart: ^0.70.2
   cloud_firestore: ^5.6.6
   shared_preferences: ^2.5.3
+  file_picker: ^10.1.9       # For picking .bin files from device storage
+  http: ^1.4.0                # For sending HTTP POST requests to ESP32
+  path: ^1.9.0                # For file path operations
 
 dev_dependencies:
   flutter_test:
@@ -59,4 +62,3 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/
-    - assets/svgs/

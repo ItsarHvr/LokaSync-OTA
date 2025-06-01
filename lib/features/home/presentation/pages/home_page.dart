@@ -156,16 +156,17 @@ class _HomeState extends State<Home> {
     return 'User';
   }
   
-  // Method untuk menangani navigasi bottom bar
-  void _onItemTapped(int index) {
-    if (index == currentIndex) return;
-    
-    if (index == 1) {
-      Navigator.pushReplacementNamed(context, '/monitoring');
-    } else if (index == 2) {
-      Navigator.pushReplacementNamed(context, '/profile');
-    }
+void _onItemTapped(int index) {
+  if (index == currentIndex) return;
+
+  if (index == 1) {
+    Navigator.pushReplacementNamed(context, '/monitoring');
+  } else if (index == 2) {
+    Navigator.pushReplacementNamed(context, '/profile');
+  } else if (index == 3) {
+    Navigator.pushReplacementNamed(context, '/ota-update');
   }
+}
   
   @override
   Widget build(BuildContext context) {

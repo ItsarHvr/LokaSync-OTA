@@ -262,18 +262,22 @@ class _MonitoringState extends State<Monitoring> {
             ? const Center(child: CircularProgressIndicator(color: Color(0xFF014331)))
             : _buildContent(),
       ),
-      bottomNavigationBar: BottomNavBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          if (index != _currentIndex) {
-            if (index == 0) {
-              Navigator.pushReplacementNamed(context, '/home');
-            } else if (index == 2) {
-              Navigator.pushReplacementNamed(context, '/profile');
-            }
-          }
-        },
-      ),
+    bottomNavigationBar: BottomNavBar(
+    currentIndex: _currentIndex,
+    onTap: (index) {
+    if (index != 3) {
+      if (index == 0) {
+        Navigator.pushReplacementNamed(context, '/home');
+      } else if (index == 1) {
+        Navigator.pushReplacementNamed(context, '/monitoring');
+      } else if (index == 2) {
+        Navigator.pushReplacementNamed(context, '/profile');
+      }
+    } else {
+      Navigator.pushReplacementNamed(context, '/ota-update');
+    }
+  },
+),
     );
   }
   
