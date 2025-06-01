@@ -15,7 +15,7 @@ class InputLog(BaseModel):
     node_mac: Optional[str] = Field(default=None, min_length=1, max_length=255)
     data: Optional[Dict[str, Any]] = None
     firmware_size: Optional[float] = None
-    firmware_bytes: int = None
+    firmware_bytes: Optional[int] = None
     download_times: Optional[float] = None
     download_speed: Optional[float] = None
     download_status: str = Field(default="pending", min_length=1, max_length=255)
