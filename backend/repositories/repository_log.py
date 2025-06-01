@@ -49,6 +49,7 @@ class LogRepository:
         return [
             Log(
                 _id=str(doc["_id"]),
+                node_id=doc["node_id"],
                 node_codename=doc["node_codename"],
                 node_location=doc["node_location"],
                 node_type=doc["node_type"],
@@ -126,6 +127,7 @@ class LogRepository:
 
             # Ambil field yang wajib selalu diupdate/set dari log_data
             update_fields = {
+                "node_id": log_data["node_id"],
                 "node_location": log_data["node_location"],
                 "node_type": log_data["node_type"],
                 "type": log_data["type"],

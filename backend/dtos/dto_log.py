@@ -7,6 +7,7 @@ from models.model_log import Log
 class InputLog(BaseModel):
     type: str = Field(min_length=1, max_length=255)
     message: str = Field(min_length=1, max_length=255)
+    node_id:str = Field(min_length=1, max_length=255)
     node_location: str = Field(min_length=1, max_length=255)
     node_type: str = Field(min_length=1, max_length=255)
     node_codename: str = Field(min_length=1, max_length=255)

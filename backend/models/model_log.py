@@ -6,6 +6,7 @@ class Log(BaseModel):
     _id:str
     type:str
     message:str
+    node_id:str
     node_location:str
     node_type:str
     node_codename:str
