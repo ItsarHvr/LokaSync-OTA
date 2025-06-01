@@ -83,15 +83,29 @@ final response = await http.Response.fromStream(streamedResponse);
 
 stopwatch.stop();
 
+final esp32TimeRegExp = RegExp(r'Download Time :\s*([\d.]+)\s*seconds', caseSensitive: false);
+double? esp32Time;
+final match = esp32TimeRegExp.firstMatch(response.body);
+if (match != null) {
+  esp32Time = double.tryParse(match.group(1)!);
+}
+
 setState(() {
   _isUploading = false;
   _uploadTime = stopwatch.elapsedMilliseconds / 1000.0;
   _uploadSpeed = total / 1024.0 / (_uploadTime ?? 1);
+  double? latency;
+    if (esp32Time != null && _uploadTime != null) {
+      latency = _uploadTime! - esp32Time;
+    }
+
   _log = "OTA Update Complete!\n\n"
-      "Firmware size: ${(_firmwareSize! / 1024).toStringAsFixed(2)} KB = ${(_firmwareSize!).toStringAsFixed(2)} Bytes\n"
-      "Upload time: ${_uploadTime!.toStringAsFixed(2)} s\n"
-      "Speed: ${_uploadSpeed!.toStringAsFixed(2)} KB/s\n\n"
-      "ESP32 Response:\n${response.body}";
+      "Firmware Size (KBs)  : ${(_firmwareSize! / 1024).toStringAsFixed(2)} KB\n"
+      "Firmware Size (Bytes): ${(_firmwareSize!).toStringAsFixed(2)} Bytes\n"
+      "Upload Time (App)    : ${_uploadTime!.toStringAsFixed(2)} s\n"
+      "Upload Time (ESP32)  : ${esp32Time?.toStringAsFixed(2) ?? '-'} s\n"
+      "Latency              : ${latency != null ? latency.toStringAsFixed(2) : '-'} s\n\n"
+      "\n\nESP32 Response:\n${response.body}";
 });
 
     } catch (e) {
