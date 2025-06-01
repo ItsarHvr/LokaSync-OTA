@@ -60,6 +60,8 @@ class LogRepository:
                 firmware_version=doc["firmware_version"],
                 data=doc.get("data"),
                 firmware_size=doc["firmware_size"],
+                firmware_bytes=doc["firmware_bytes"],
+                download_times=doc["download_times"],
                 download_speed=doc["download_speed"],
                 download_status=doc["download_status"],
                 ota_status=doc["ota_status"]
@@ -146,6 +148,10 @@ class LogRepository:
             # Update fields berdasarkan message
             if "firmware size ok" in msg:
                 update_fields["firmware_size"] = log_data.get("data", {}).get("size_kb")
+            if "firmware bytes written" in msg:
+                update_fields["firmware_bytes"] = log_data.get("data", {}).get("bytes")
+            if "download time (s)" in msg:
+                update_fields["download_times"] = log_data.get("data", {}).get("seconds")
             if "download speed" in msg:
                 update_fields["download_speed"] = log_data.get("data", {}).get("speed_kbps")
             if "download complete" in msg:
@@ -157,9 +163,14 @@ class LogRepository:
                 update_fields["download_status"] = "pending"
                 update_fields["ota_status"] = "pending"
                 default_fields["download_speed"] = None
+                default_fields["download_times"] = None
 
             if "firmware_size" not in update_fields:
                 default_fields["firmware_size"] = None
+            if "firmware_bytes" not in update_fields:
+                default_fields["firmware_bytes"] = None
+            if "download_times" not in update_fields:
+                default_fields["download_times"] = None
             if "download_speed" not in update_fields:
                 default_fields["download_speed"] = None
             if "download_status" not in update_fields:

@@ -15,6 +15,8 @@ class Log(BaseModel):
     node_mac:Optional[str] = None
     data: Optional[Dict[str, Any]] = None
     firmware_size:Optional[float] = None
+    firmware_bytes:int
+    download_times:Optional[float] = None
     download_speed:Optional[float] = None
     download_status:str
     ota_status:str
