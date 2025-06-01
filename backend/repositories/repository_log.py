@@ -33,6 +33,7 @@ class LogRepository:
             # Stage 2: Sort by latest_updated
             {"$sort": {
                 "node_codename": 1,
+                "node_mac": 1,
                 "firmware_version": -1,
                 "timestamp": -1
             }},
@@ -51,6 +52,7 @@ class LogRepository:
                 node_codename=doc["node_codename"],
                 node_location=doc["node_location"],
                 node_type=doc["node_type"],
+                node_mac=doc.get("node_mac"),
                 type=doc["type"],
                 message=doc["message"],
                 timestamp=doc["timestamp"],
@@ -109,10 +111,18 @@ class LogRepository:
             log_data = log.model_dump()
             log_data["timestamp"] = datetime.now(timezone.utc)
 
+            is_group = "_group" in log_data["node_codename"]
+
             filter_query = {
                 "node_codename": log_data["node_codename"],
                 "firmware_version": log_data["firmware_version"]
             }
+
+            if is_group:
+                node_mac = log_data.get("node_mac")
+                if not node_mac:
+                    raise HTTPException(status_code=400, detail="node_mac wajib diisi jika log dari grup")
+                filter_query["node_mac"] = node_mac
 
             # Ambil field yang wajib selalu diupdate/set dari log_data
             update_fields = {
@@ -123,6 +133,10 @@ class LogRepository:
                 "message": log_data.get("message"),
                 "data": log_data.get("data"),
             }
+
+            # Simpan node_mac jika ada
+            if node_mac := log_data.get("node_mac"):
+                update_fields["node_mac"] = node_mac
 
             msg = log_data.get("message", "").lower()
             default_fields = {}
