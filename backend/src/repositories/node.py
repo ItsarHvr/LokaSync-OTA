@@ -257,13 +257,24 @@ class NodeRepository:
         return versions
 
     async def count_nodes(self, filters: Dict[str, Any]) -> int:
-        logger.db_info(f"Repository: Counting nodes with filters: {filters}")
+        logger.db_info(f"Repository: Counting unique nodes with filters: {filters}")
         try:
-            count = await self.nodes_collection.count_documents(filters)
-            logger.db_info(f"Repository: Total nodes count: {count}")
+            # Use aggregation to count unique node_codenames that match the filters
+            pipeline = [
+                {"$match": filters or {}},
+                {"$group": {
+                    "_id": "$node_codename"
+                }},
+                {"$count": "total"}
+            ]
+            
+            result = await self.nodes_collection.aggregate(pipeline).to_list(length=1)
+            count = result[0]["total"] if result else 0
+            
+            logger.db_info(f"Repository: Total unique nodes count: {count}")
             return count
         except Exception as e:
-            logger.db_error("Repository: Failed to count nodes", e)
+            logger.db_error("Repository: Failed to count unique nodes", e)
             return 0
 
     async def get_filter_options(self) -> BaseFilterOptions:
