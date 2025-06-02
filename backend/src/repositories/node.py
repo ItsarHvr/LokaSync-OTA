@@ -1,5 +1,5 @@
 from fastapi import Depends
-from pymongo import DESCENDING
+from pymongo import ASCENDING, DESCENDING
 from typing import Dict, Any, List, Optional
 from motor.motor_asyncio import (
     AsyncIOMotorDatabase,
@@ -169,17 +169,30 @@ class NodeRepository:
         limit: int = 10
     ) -> List[NodeModel]:
         logger.db_info(f"Repository: Retrieving nodes - Skip: {skip}, Limit: {limit}, Filters: {filters}")
-        
+
         try:
-            cursor = (
-                self.nodes_collection
-                .find(filters or {})
-                .sort("created_at", DESCENDING)
-                .skip(skip)
-                .limit(limit)
-            )
-            nodes = await cursor.to_list(length=limit)
-            logger.db_info(f"Repository: Retrieved {len(nodes)} nodes from database")
+            # Use aggregation pipeline to get the latest version of each node
+            pipeline = [
+                # Match documents based on filters
+                {"$match": filters or {}},
+                # Sort by firmware_version in descending order within each node_codename group
+                {"$sort": {"node_codename": 1, "firmware_version": DESCENDING}},
+                # Group by node_codename and keep the first document (latest version)
+                {"$group": {
+                    "_id": "$node_codename",
+                    "doc": {"$first": "$$ROOT"}
+                }},
+                # Replace the root with the document from the group stage
+                {"$replaceRoot": {"newRoot": "$doc"}},
+                # Sort by created_at for consistent ordering
+                {"$sort": {"node_codename": ASCENDING}},
+                # Apply pagination
+                {"$skip": skip},
+                {"$limit": limit}
+            ]
+            
+            nodes = await self.nodes_collection.aggregate(pipeline).to_list(length=limit)
+            logger.db_info(f"Repository: Retrieved {len(nodes)} unique nodes (latest versions) from database")
             return [NodeModel(**node) for node in nodes]
         except Exception as e:
             logger.db_error("Repository: Failed to retrieve nodes", e)
