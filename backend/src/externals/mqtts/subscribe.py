@@ -11,6 +11,7 @@ from enums.log import LogStatus
 from repositories.log import LogRepository
 from services.log import LogService
 from utils.logger import logger
+from externals.mqtts.publish import publish_log_data
 
 
 """NOTE:
@@ -36,6 +37,12 @@ def subscribe_message(
         raise RuntimeError("Main event loop must be provided from the main thread/event loop.")
 
     def on_message(client, userdata, msg):
+        # Skip processing for retained messages on startup
+        is_retained = msg.retain
+        if is_retained:
+            logger.mqtt_info(f"Skipping retained message on topic {msg.topic}")
+            return
+
         try:
             payload = msg.payload.decode()
             log_data = json.loads(payload)
@@ -124,8 +131,20 @@ def subscribe_message(
                         log_data=log_data
                     )
                     
+                    # If the log was processed successfully, publish the data to the frontend
                     if result_log:
                         logger.db_info(f"Log processed successfully - Codename: '{result_log.node_codename}'")
+                        
+                        # Convert model to dict for publishing
+                        log_dict = result_log.model_dump()
+                        
+                        # Publish the updated log data to frontend
+                        is_pub_success: bool = publish_log_data(client, log_data=log_dict)
+                        # Check if the publish was successful
+                        if not is_pub_success:
+                            logger.mqtt_error("Failed to publish log data to frontend.")
+                        else:
+                            logger.mqtt_info("Log data published to frontend successfully.")
                     else:
                         logger.db_error("Failed to process log data.")
                 except Exception as e:

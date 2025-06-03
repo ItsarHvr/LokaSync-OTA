@@ -31,9 +31,10 @@ class Environment(BaseSettings):
     MQTT_BROKER_CA_CERT_NAME: str = getenv("MQTT_BROKER_CA_CERT_NAME", "emqxsl-ca.crt")
     MQTT_BROKER_TLS_ENABLED: bool = getenv("MQTT_BROKER_TLS_ENABLED", "false").lower() in ("true", "1", "Yes")
     MQTT_SUBSCRIBE_TOPIC_LOG: str = getenv("MQTT_SUBSCRIBE_TOPIC_LOG")
+    MQTT_PUBLISH_TOPIC_LOG: str = getenv("MQTT_PUBLISH_TOPIC_LOG")
+    MQTT_PUBLISH_TOPIC_MONITORING: str = getenv("MQTT_PUBLISH_TOPIC_MONITORING")
     MQTT_CLIENT_ID: str = getenv("MQTT_CLIENT_ID", f"lokasync_backend_{randint(1000, 9999)}")
     MQTT_DEFAULT_QOS: int = int(getenv("MQTT_DEFAULT_QOS", 1))
-    # MQTT_WAIT_FLASH_TIMEOUT_SECONDS: float = float(getenv("MQTT_WAIT_FLASH_TIMEOUT_SECONDS", 60.0))
 
     # Firebase auth settings
     FIREBASE_CREDS_NAME: str = getenv("FIREBASE_CREDS_NAME")
