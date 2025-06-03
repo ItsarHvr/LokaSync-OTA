@@ -32,7 +32,7 @@ async def add_new_node(
     service: NodeService = Depends(),
     current_user: dict = Depends(get_current_user)
 ) -> SingleNodeResponse:
-    logger.api_info(f"Adding new node - User: {current_user.get('username', 'unknown')}", data.model_dump())
+    logger.api_info(f"Adding new node", data.model_dump())
     node = await service.add_new_node(data)
     logger.api_info(f"Node created successfully - Codename: {node.node_codename}")
     return SingleNodeResponse(
@@ -48,7 +48,7 @@ async def upsert_firmware(
     service: NodeService = Depends(),
     current_user: dict = Depends(get_current_user)
 ) -> SingleNodeResponse:
-    logger.api_info(f"Adding firmware to node '{node_codename}' - User: {current_user.get('username', 'unknown')}", data.model_dump())
+    logger.api_info(f"Adding firmware to node '{node_codename}'", data.model_dump())
     node = await service.upsert_firmware(node_codename, data)
     logger.api_info(f"Firmware version '{data.firmware_version}' added to node '{node_codename}'")
     return SingleNodeResponse(
@@ -65,7 +65,7 @@ async def edit_description(
     service: NodeService = Depends(),
     current_user: dict = Depends(get_current_user)
 ) -> SingleNodeResponse:
-    logger.api_info(f"Updating description for node '{node_codename}' - User: {current_user.get('username', 'unknown')}")
+    logger.api_info(f"Updating description for node '{node_codename}'")
     node = await service.update_description(node_codename, description, firmware_version)
     logger.api_info(f"Description updated for node '{node_codename}'")
     return SingleNodeResponse(
@@ -115,7 +115,7 @@ async def get_detail_node(
     service: NodeService = Depends(),
     current_user: dict = Depends(get_current_user)
 ) -> SingleNodeResponse:
-    logger.api_info(f"Retrieving node details - Codename: '{node_codename}', Version: {firmware_version}")
+    logger.api_info(f"Retrieving node details - Codename: '{node_codename}', Version: '{firmware_version}'")
     node = await service.get_detail_node(node_codename, firmware_version)
     logger.api_info(f"Node details retrieved - Codename: '{node_codename}'")
     return SingleNodeResponse(
@@ -150,7 +150,7 @@ async def delete_node(
     service: NodeService = Depends(),
     current_user: dict = Depends(get_current_user)
 ) -> None:
-    logger.api_info(f"Deleting node '{node_codename}' - Version: {firmware_version} - User: {current_user.get('username', 'unknown')}")
+    logger.api_info(f"Deleting node '{node_codename}' - Version: '{firmware_version}'")
     await service.delete_node(node_codename, firmware_version)
     logger.api_info(f"Node '{node_codename}' deleted successfully")
     return Response(status_code=status.HTTP_204_NO_CONTENT, content=None)

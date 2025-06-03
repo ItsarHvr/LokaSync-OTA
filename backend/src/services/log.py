@@ -30,8 +30,8 @@ class LogService:
         Upsert log entry in MongoDB.
         Returns LogModel with proper _id if successful, None otherwise.
         """
-        logger.api_info(f"Service: Upserting log from MQTT for node '{node_codename}' - Version: {firmware_version}")
-        
+        logger.api_info(f"Service: Upserting log from MQTT for node '{node_codename}' - Version: '{firmware_version}'")
+
         filter_query = {
             "session_id": session_id,
             "node_mac": node_mac,
@@ -68,9 +68,26 @@ class LogService:
         logger.api_info(f"Service: Retrieved {len(logs)} logs")
         return logs
     
-    async def delete_log(self, node_codename: str, firmware_version: Optional[str]) -> None:
-        logger.api_info(f"Service: Deleting log for node '{node_codename}' - Version: {firmware_version}")
+    async def get_detail_log(
+        self,
+        node_codename: str,
+        firmware_version: str
+    ) -> Optional[LogModel]:
+        logger.api_info(f"Service: Retrieving log for node '{node_codename}' - Version: '{firmware_version}'")
+
+        log = await self.logs_repository.get_detail_log(node_codename=node_codename, firmware_version=firmware_version)
         
+        if log:
+            logger.api_info(f"Service: Log found for node '{node_codename}' - Version: '{firmware_version}'")
+        else:
+            logger.api_error(f"Service: No log found for node '{node_codename}' - Version: '{firmware_version}'")
+            raise HTTPException(status_code=404, detail="Log or firmware version not found.")
+
+        return log
+    
+    async def delete_log(self, node_codename: str, firmware_version: Optional[str]) -> None:
+        logger.api_info(f"Service: Deleting log for node '{node_codename}' - Version: '{firmware_version}'")
+
         node_exist = await self.logs_repository.get_node_by_codename(node_codename)
         if not node_exist:
             logger.api_error(f"Service: No logs found for node '{node_codename}'")
@@ -78,7 +95,7 @@ class LogService:
 
         deleted = await self.logs_repository.delete_log(node_codename, firmware_version)
         if not deleted:
-            logger.api_error(f"Service: No logs deleted for node '{node_codename}' - Version: {firmware_version}")
+            logger.api_error(f"Service: No logs deleted for node '{node_codename}' - Version: '{firmware_version}'")
             raise HTTPException(status_code=404, detail="Firmware version not found.")
         
         logger.api_info(f"Service: Successfully deleted {deleted} log(s) for node '{node_codename}'")

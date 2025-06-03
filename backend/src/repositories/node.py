@@ -116,8 +116,8 @@ class NodeRepository:
         description: str,
         firmware_version: Optional[str]
     ) -> Optional[NodeModel]:
-        logger.db_info(f"Repository: Updating description for node '{node_codename}' - Version: {firmware_version}")
-        
+        logger.db_info(f"Repository: Updating description for node '{node_codename}' - Version: '{firmware_version}'")
+
         now = get_current_datetime()
         filter_query = {"node_codename": node_codename}
         if firmware_version:
@@ -148,8 +148,8 @@ class NodeRepository:
             return NodeModel(**doc) if doc else None
 
     async def delete_node(self, node_codename: str, firmware_version: Optional[str]) -> int:
-        logger.db_info(f"Repository: Deleting node '{node_codename}' - Version: {firmware_version}")
-        
+        logger.db_info(f"Repository: Deleting node '{node_codename}' - Version: '{firmware_version}'")
+
         if firmware_version:
             result = await self.nodes_collection.delete_one({
                 "node_codename": node_codename,
@@ -210,8 +210,8 @@ class NodeRepository:
             - If firmware_version is provided, it will return the specific version.
             - If no node is found, it returns None.
         """
-        logger.db_info(f"Repository: Getting node details - Codename: '{node_codename}', Version: {firmware_version}")
-        
+        logger.db_info(f"Repository: Getting node details - Codename: '{node_codename}', Version: '{firmware_version}'")
+
         query = {"node_codename": node_codename}
         if firmware_version:
             # If firmware_version is provided, filter by it

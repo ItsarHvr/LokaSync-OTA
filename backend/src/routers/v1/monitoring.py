@@ -16,7 +16,7 @@ async def get_list_nodes(
     service: MonitoringService = Depends(),
     current_user: dict = Depends(get_current_user)
 ) -> ListNodeResponse:
-    logger.api_info(f"Getting list of available nodes - User: {current_user.get('username', 'unknown')}")
+    logger.api_info(f"Getting list of available nodes")
     
     nodes = await service.get_list_nodes()
     

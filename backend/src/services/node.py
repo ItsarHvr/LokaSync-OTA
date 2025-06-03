@@ -30,9 +30,9 @@ class NodeService:
     ) -> Optional[NodeModel]:
         firmware_url = data.firmware_url
         firmware_version = data.firmware_version
-        
-        logger.api_info(f"Service: Upserting firmware for node '{node_codename}' - Version: {firmware_version}")
-        
+
+        logger.api_info(f"Service: Upserting firmware for node '{node_codename}' - Version: '{firmware_version}'")
+
         if not firmware_url and not firmware_version:
             logger.api_error("Service: Firmware URL and version must be provided")
             raise HTTPException(400, "Firmware URL and version must be provided.")
@@ -87,8 +87,8 @@ class NodeService:
         node_codename: str,
         firmware_version: Optional[str]
     ) -> None:
-        logger.api_info(f"Service: Deleting node '{node_codename}' - Version: {firmware_version}")
-        
+        logger.api_info(f"Service: Deleting node '{node_codename}' - Version: '{firmware_version}'")
+
         node_exist = await self.nodes_repository.get_node_by_codename(node_codename)
         if not node_exist:
             logger.api_error(f"Service: Node '{node_codename}' not found")
@@ -117,8 +117,8 @@ class NodeService:
         node_codename: str,
         firmware_version: Optional[str]
     ) -> Optional[NodeModel]:
-        logger.api_info(f"Service: Getting node details - Codename: '{node_codename}', Version: {firmware_version}")
-        
+        logger.api_info(f"Service: Getting node details - Codename: '{node_codename}', Version: '{firmware_version}'")
+
         node_exist = await self.nodes_repository.get_node_by_codename(node_codename)
         if not node_exist:
             logger.api_error(f"Service: Node '{node_codename}' not found")

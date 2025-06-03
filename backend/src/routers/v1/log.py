@@ -8,7 +8,7 @@ from fastapi import (
 from typing import Optional, Dict, Any
 
 from enums.log import LogStatus
-from schemas.log import LogDataResponse
+from schemas.log import LogDataResponse, SingleLogResponse
 from services.log import LogService
 from cores.dependencies import get_current_user
 from utils.logger import logger
@@ -34,7 +34,7 @@ async def get_all_logs(
     if flash_status:
         filters["flash_status"] = flash_status
 
-    logger.api_info(f"Retrieving logs - Page: {page}, Size: {page_size}, Filters: {filters} - User: {current_user.get('username', 'unknown')}")
+    logger.api_info(f"Retrieving logs - Page: {page}, Size: {page_size}, Filters: {filters}")
 
     skip = (page - 1) * page_size
     total_data = await service.count_logs(filters)
@@ -55,6 +55,30 @@ async def get_all_logs(
         data=logs
     )
 
+@router_log.get(
+    path="/detail/{node_codename}",
+    response_model=SingleLogResponse
+)
+async def get_detail_log(
+    node_codename: str,
+    firmware_version: str,
+    service: LogService = Depends(),
+    current_user: dict = Depends(get_current_user)
+) -> SingleLogResponse:
+    logger.api_info(f"Retrieving log details for node '{node_codename}' - Version: '{firmware_version}'")
+
+    log = await service.get_detail_log(node_codename=node_codename, firmware_version=firmware_version)
+
+    if log:
+        logger.api_info(f"Successfully retrieved log details for node '{node_codename}' - Version: '{firmware_version}'")
+    else:
+        logger.api_error(f"No log found for node '{node_codename}' - Version: '{firmware_version}'")
+
+    return SingleLogResponse(
+        message="Log details retrieved successfully",
+        status_code=status.HTTP_200_OK,
+        data=log
+    )
 
 @router_log.delete(
     path="/delete/{node_codename}",
@@ -67,9 +91,9 @@ async def delete_log(
     service: LogService = Depends(),
     current_user: dict = Depends(get_current_user)
 ) -> None:
-    logger.api_info(f"Deleting logs for node '{node_codename}' - Version: {firmware_version} - User: {current_user.get('username', 'unknown')}")
-    
+    logger.api_info(f"Deleting logs for node '{node_codename}' - Version: '{firmware_version}'")
+
     await service.delete_log(node_codename, firmware_version)
-    
-    logger.api_info(f"Successfully deleted logs for node '{node_codename}' - Version: {firmware_version}")
+
+    logger.api_info(f"Successfully deleted logs for node '{node_codename}' - Version: '{firmware_version}'")
     return Response(status_code=status.HTTP_204_NO_CONTENT, content=None)
