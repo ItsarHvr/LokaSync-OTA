@@ -70,35 +70,34 @@ class LogService:
     
     async def get_detail_log(
         self,
-        node_codename: str,
-        firmware_version: str
+        session_id: str
     ) -> Optional[LogModel]:
-        logger.api_info(f"Service: Retrieving log for node '{node_codename}' - Version: '{firmware_version}'")
+        logger.api_info(f"Service: Retrieving log for session id '{session_id}'")
 
-        log = await self.logs_repository.get_detail_log(node_codename=node_codename, firmware_version=firmware_version)
-        
+        log = await self.logs_repository.get_detail_log(session_id=session_id)
+
         if log:
-            logger.api_info(f"Service: Log found for node '{node_codename}' - Version: '{firmware_version}'")
+            logger.api_info(f"Service: Log found for session id '{session_id}'")
         else:
-            logger.api_error(f"Service: No log found for node '{node_codename}' - Version: '{firmware_version}'")
-            raise HTTPException(status_code=404, detail="Log or firmware version not found.")
+            logger.api_error(f"Service: No log found for session id '{session_id}'")
+            raise HTTPException(status_code=404, detail=f"Log not found.")
 
         return log
-    
-    async def delete_log(self, node_codename: str, firmware_version: Optional[str]) -> None:
-        logger.api_info(f"Service: Deleting log for node '{node_codename}' - Version: '{firmware_version}'")
 
-        node_exist = await self.logs_repository.get_node_by_codename(node_codename)
-        if not node_exist:
-            logger.api_error(f"Service: No logs found for node '{node_codename}'")
-            raise HTTPException(status_code=404, detail="Node not found.")
+    async def delete_log(self, session_id: str) -> None:
+        logger.api_info(f"Service: Deleting log for session id '{session_id}'")
 
-        deleted = await self.logs_repository.delete_log(node_codename, firmware_version)
+        log_exist = await self.logs_repository.get_detail_log(session_id=session_id)
+        if not log_exist:
+            logger.api_error(f"Service: No logs found for session id '{session_id}'")
+            raise HTTPException(status_code=404, detail="Log not found.")
+
+        deleted = await self.logs_repository.delete_log(session_id)
         if not deleted:
-            logger.api_error(f"Service: No logs deleted for node '{node_codename}' - Version: '{firmware_version}'")
-            raise HTTPException(status_code=404, detail="Firmware version not found.")
-        
-        logger.api_info(f"Service: Successfully deleted {deleted} log(s) for node '{node_codename}'")
+            logger.api_error(f"Service: No logs deleted for session id '{session_id}'")
+            raise HTTPException(status_code=404, detail="Log not found.")
+
+        logger.api_info(f"Service: Successfully deleted {deleted} log(s) for session id '{session_id}'")
 
     async def count_logs(self, filters: Dict[str, Any]) -> int:
         logger.api_info(f"Service: Counting logs with filters: {filters}")

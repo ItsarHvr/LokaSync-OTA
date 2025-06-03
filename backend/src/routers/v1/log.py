@@ -56,23 +56,22 @@ async def get_all_logs(
     )
 
 @router_log.get(
-    path="/detail/{node_codename}",
+    path="/detail/{session_id}",
     response_model=SingleLogResponse
 )
 async def get_detail_log(
-    node_codename: str,
-    firmware_version: str,
+    session_id: str,
     service: LogService = Depends(),
     current_user: dict = Depends(get_current_user)
 ) -> SingleLogResponse:
-    logger.api_info(f"Retrieving log details for node '{node_codename}' - Version: '{firmware_version}'")
+    logger.api_info(f"Retrieving log details for session id '{session_id}'")
 
-    log = await service.get_detail_log(node_codename=node_codename, firmware_version=firmware_version)
+    log = await service.get_detail_log(session_id=session_id)
 
     if log:
-        logger.api_info(f"Successfully retrieved log details for node '{node_codename}' - Version: '{firmware_version}'")
+        logger.api_info(f"Successfully retrieved log details for session id '{session_id}'")
     else:
-        logger.api_error(f"No log found for node '{node_codename}' - Version: '{firmware_version}'")
+        logger.api_error(f"No log found for session id '{session_id}'")
 
     return SingleLogResponse(
         message="Log details retrieved successfully",
@@ -81,19 +80,18 @@ async def get_detail_log(
     )
 
 @router_log.delete(
-    path="/delete/{node_codename}",
+    path="/delete/{session_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     response_class=Response
 )
 async def delete_log(
-    node_codename: str,
-    firmware_version: Optional[str] = None,
+    session_id: str,
     service: LogService = Depends(),
     current_user: dict = Depends(get_current_user)
 ) -> None:
-    logger.api_info(f"Deleting logs for node '{node_codename}' - Version: '{firmware_version}'")
+    logger.api_info(f"Deleting logs for session id '{session_id}'")
 
-    await service.delete_log(node_codename, firmware_version)
+    await service.delete_log(session_id)
 
-    logger.api_info(f"Successfully deleted logs for node '{node_codename}' - Version: '{firmware_version}'")
+    logger.api_info(f"Successfully deleted logs for session id '{session_id}'")
     return Response(status_code=status.HTTP_204_NO_CONTENT, content=None)

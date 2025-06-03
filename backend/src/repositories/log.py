@@ -111,26 +111,25 @@ class LogRepository:
             logger.db_error("Repository: Failed to retrieve logs", e)
             return []
     
-    async def get_detail_log(self, node_codename: str, firmware_version: str) -> Optional[LogModel]:
+    async def get_detail_log(self, session_id: str) -> Optional[LogModel]:
         """
-        Retrieve a detailed log entry by node codename and firmware version.
+        Retrieve a detailed log entry by session id.
         Returns LogModel if found, None otherwise.
         """
-        logger.db_info(f"Repository: Retrieving log for node '{node_codename}' - Version: '{firmware_version}'")
+        logger.db_info(f"Repository: Retrieving log for session id '{session_id}'")
 
         try:
             log = await self.logs_collection.find_one({
-                "node_codename": node_codename,
-                "firmware_version": firmware_version
+                "session_id": session_id
             })
             if log:
-                logger.db_info(f"Repository: Log found for node '{node_codename}' - Version: '{firmware_version}'")
+                logger.db_info(f"Repository: Log found for session id '{session_id}'")
                 return LogModel(**log)
             else:
-                logger.db_info(f"Repository: No log found for node '{node_codename}' - Version: '{firmware_version}'")
+                logger.db_info(f"Repository: No log found for session id '{session_id}'")
                 return None
         except Exception as e:
-            logger.db_error(f"Repository: Failed to retrieve log for node '{node_codename}'", e)
+            logger.db_error(f"Repository: Failed to retrieve log for session id '{session_id}'", e)
             return None
     
     async def get_node_by_codename(self, node_codename: str) -> bool:
@@ -148,23 +147,16 @@ class LogRepository:
             logger.db_error(f"Repository: Failed to check log existence for node '{node_codename}'", e)
             return False
 
-    async def delete_log(self, node_codename: str, firmware_version: Optional[str] = None) -> int:
-        logger.db_info(f"Repository: Deleting logs for node '{node_codename}' - Version: '{firmware_version}'")
+    async def delete_log(self, session_id: str) -> int:
+        logger.db_info(f"Repository: Deleting logs for session id '{session_id}'")
 
         try:
-            if firmware_version:
-                result = await self.logs_collection.delete_one({
-                    "node_codename": node_codename,
-                    "firmware_version": firmware_version
-                })
-                logger.db_info(f"Repository: Deleted {result.deleted_count} log(s) for node '{node_codename}' version '{firmware_version}'")
-            else:
-                result = await self.logs_collection.delete_many({"node_codename": node_codename})
-                logger.db_info(f"Repository: Deleted {result.deleted_count} log(s) for node '{node_codename}' (all versions)")
+            result = await self.logs_collection.delete_one({"session_id": session_id})
+            logger.db_info(f"Repository: Deleted {result.deleted_count} log(s) for session id '{session_id}'")
 
             return result.deleted_count
         except Exception as e:
-            logger.db_error(f"Repository: Failed to delete logs for node '{node_codename}'", e)
+            logger.db_error(f"Repository: Failed to delete logs for session id '{session_id}'", e)
             return 0
     
     async def count_logs(self, filters: Dict[str, Any]) -> int:
