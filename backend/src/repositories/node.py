@@ -184,8 +184,8 @@ class NodeRepository:
                 }},
                 # Replace the root with the document from the group stage
                 {"$replaceRoot": {"newRoot": "$doc"}},
-                # Sort by created_at for consistent ordering
-                {"$sort": {"node_codename": ASCENDING}},
+                # Sort by latest_updated to show recently modified nodes first
+                {"$sort": {"latest_updated": DESCENDING}},
                 # Apply pagination
                 {"$skip": skip},
                 {"$limit": limit}
