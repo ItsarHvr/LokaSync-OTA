@@ -8,10 +8,13 @@ from fastapi import (
 )
 from typing import Optional, Dict, Any
 
+from fastapi.responses import StreamingResponse
+
 from enums.log import LogStatus
 from schemas.log import LogDataResponse, SingleLogResponse
 from services.log import LogService
 from cores.dependencies import get_current_user
+from utils.datetime import get_current_datetime
 from utils.logger import logger
 
 router_log = APIRouter()
@@ -96,3 +99,74 @@ async def delete_log(
 
     logger.api_info(f"Successfully deleted logs for session id '{session_id}'")
     return Response(status_code=status.HTTP_204_NO_CONTENT, content=None)
+
+@router_log.get(
+    path="/export",
+    response_class=StreamingResponse
+)
+async def export_logs(
+    type: str = Query(default="csv", regex="^(csv|pdf)$"),
+    auto_gen_fname: bool = Query(default=True),
+    filename: Optional[str] = Query(default="lokasync_logs"),
+    with_datetime: bool = Query(default=False),
+    node_location: Optional[str] = Query(default=None, min_length=3, max_length=255),
+    node_type: Optional[str] = Query(default=None, min_length=3, max_length=255),
+    flash_status: Optional[LogStatus] = Query(default=None),
+    service: LogService = Depends(),
+    current_user: dict = Depends(get_current_user)
+) -> StreamingResponse:
+    """
+    Export logs to CSV or PDF format.
+    Optional filters can be applied.
+    """
+    logger.api_info(f"Exporting logs to {type.upper()} format")
+    
+    # Apply any filters provided
+    filters = {}
+    if node_location:
+        filters["node_location"] = node_location
+    if node_type:
+        filters["node_type"] = node_type
+    if flash_status:
+        filters["flash_status"] = flash_status
+    
+    # Generate the file
+    export_data = await service.export_logs(export_type=type, filters=filters)
+    
+    # Generate filename based on parameters
+    if auto_gen_fname:
+        base_filename = "lokasync_logs"
+        if with_datetime:
+            date_str = get_current_datetime().strftime("%Y-%m-%d")
+            final_filename = f"{base_filename}_{date_str}.{type}"
+        else:
+            final_filename = f"{base_filename}.{type}"
+    else:
+        # Use provided filename
+        if with_datetime:
+            date_str = get_current_datetime().strftime("%Y-%m-%d")
+            # Remove extension if provided, then add date and extension
+            base_name = filename.rsplit('.', 1)[0] if '.' in filename else filename
+            final_filename = f"{base_name}_{date_str}.{type}"
+        else:
+            # Ensure proper extension
+            if not filename.endswith(f".{type}"):
+                final_filename = f"{filename}.{type}"
+            else:
+                final_filename = filename
+    
+    # Return as streaming response
+    content_types = {
+        "csv": "text/csv",
+        "pdf": "application/pdf"
+    }
+    
+    logger.api_info(f"Successfully exported logs to '{final_filename}.{type}'")
+    
+    return StreamingResponse(
+        export_data,
+        media_type=content_types[type],
+        headers={
+            "Content-Disposition": f"attachment; filename={final_filename}"
+        }
+    )

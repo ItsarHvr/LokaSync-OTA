@@ -1,10 +1,11 @@
 from fastapi import Depends, HTTPException
-from typing import Dict, Any, Optional, List
+from typing import BinaryIO, Dict, Any, Literal, Optional, List
 
 from models.log import LogModel
 from schemas.log import LogFilterOptions
 from repositories.log import LogRepository
 from utils.logger import logger
+from utils.export import create_csv_from_logs, create_pdf_from_logs
 
 
 class LogService:
@@ -114,3 +115,38 @@ class LogService:
         
         logger.api_info(f"Service: Retrieved filter options - Locations: {len(options.node_locations)}, Types: {len(options.node_types)}, Statuses: {len(options.flash_statuses)}")
         return options
+    
+    # Add this method to your LogService class
+    async def export_logs(
+        self, 
+        export_type: Literal["csv", "pdf"] = "csv",
+        filters: Dict[str, Any] = None
+    ) -> BinaryIO:
+        """
+        Export all logs to a CSV or PDF file
+        
+        Args:
+            export_type: The file format to export (csv or pdf)
+            filters: Optional filters to apply before exporting
+            
+        Returns:
+            A file-like object containing the exported data
+        """
+        logger.api_info(f"Service: Exporting logs to {export_type.upper()}")
+        
+        # Get all logs (with no pagination)
+        logs = await self.logs_repository.get_all_logs(filters=filters or {}, skip=0, limit=10000)
+        
+        logger.api_info(f"Service: Found {len(logs)} logs to export")
+        
+        # Import here to avoid circular imports
+        from utils.export import create_csv_from_logs, create_pdf_from_logs
+        
+        if export_type == "csv":
+            file_data = create_csv_from_logs(logs)
+        else:
+            file_data = create_pdf_from_logs(logs)
+        
+        logger.api_info(f"Service: Successfully created {export_type.upper()} export")
+        
+        return file_data

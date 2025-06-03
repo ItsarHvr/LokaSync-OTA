@@ -32,3 +32,6 @@ google-auth-oauthlib
 python-dotenv
 colorama # logger color
 pytz
+
+# Export log data
+fpdf
