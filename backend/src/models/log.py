@@ -1,10 +1,11 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
 from typing import Optional
 from bson import ObjectId
 
 from models.common import PyObjectId
 from enums.log import LogStatus
+from utils.validator import validate_input
 from utils.datetime import get_current_datetime, convert_datetime_to_str
 
 
@@ -42,8 +43,9 @@ class LogModel(BaseModel):
     )
     firmware_version: str = Field(
         ...,
-        min_length=3,
-        max_length=10
+        pattern=r'^\d+\.\d+\.\d+$',
+        min_length=5,
+        max_length=20
     )
 
     # For QoS purpose
@@ -55,6 +57,11 @@ class LogModel(BaseModel):
     download_completed_at: Optional[datetime] = Field(default=None) # Download complete
     flash_completed_at: Optional[datetime] = Field(default=None) # OTA update complete
     flash_status: Optional[LogStatus] = Field(default=LogStatus.IN_PROGRESS) # OTA update complete
+
+
+    @field_validator("node_location", "node_type", "node_id")
+    def validate_node_location(cls, v):
+        return validate_input(v)
 
 
     class Config:
@@ -82,7 +89,7 @@ class LogModel(BaseModel):
                 "node_type": "Pembibitan",
                 "node_id": "1a",
                 "node_codename": "cibubur-sayuranpagi_pembibitan_1a",
-                "firmware_version": "1.0",
+                "firmware_version": "1.0.0",
                 "download_started_at": "2023-10-01T12:00:00+07:00",
                 "firmware_size_kb": 1023.375,
                 "bytes_written": 1047936,

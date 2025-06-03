@@ -72,10 +72,9 @@ class NodeModifyVersionSchema(BaseModel):
 
     firmware_version: str = Field(
         ...,
-        pattern=r'^\d+\.\d+$',
-        min_length=3,
+        pattern=r'^\d+\.\d+\.\d+$',
         max_length=20,
-        description="Firmware version in x.y format (e.g., 1.0)"
+        description="Firmware version in x.y.z format (e.g., 1.0.0)"
     )
     firmware_url: str = Field(
         ...,
@@ -93,7 +92,7 @@ class NodeModifyVersionSchema(BaseModel):
         json_schema_extra = {
             "example": {
                 "firmware_url": "https://example.com/firmware/example.ino.bin",
-                "firmware_version": "1.0",
+                "firmware_version": "1.0.0",
             }
         }
 
@@ -141,7 +140,7 @@ class NodeResponse(BaseAPIResponse, BasePagination):
                         "node_codename": "cibubur-sayuranpagi_pembibitan_1a",
                         "description": "This is a description of the location.",
                         "firmware_url": "https://example.com/firmware/example.ino.bin",
-                        "firmware_version": "1.0"
+                        "firmware_version": "1.0.0"
                     }
                 ]
             }
@@ -167,7 +166,7 @@ class SingleNodeResponse(BaseAPIResponse):
                     "node_codename": "cibubur-sayuranpagi_pembibitan_1a",
                     "description": "This is a description of the location.",
                     "firmware_url": "https://example.com/firmware/example.ino.bin",
-                    "firmware_version": "1.0"
+                    "firmware_version": "1.0.0"
                 }
             }
         }

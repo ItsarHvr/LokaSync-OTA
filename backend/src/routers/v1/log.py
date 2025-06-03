@@ -3,7 +3,8 @@ from fastapi import (
     status,
     Response,
     Depends,
-    Query
+    Query,
+    Path,
 )
 from typing import Optional, Dict, Any
 
@@ -60,7 +61,7 @@ async def get_all_logs(
     response_model=SingleLogResponse
 )
 async def get_detail_log(
-    session_id: str,
+    session_id: str = Path(..., max_length=8),
     service: LogService = Depends(),
     current_user: dict = Depends(get_current_user)
 ) -> SingleLogResponse:
@@ -85,7 +86,7 @@ async def get_detail_log(
     response_class=Response
 )
 async def delete_log(
-    session_id: str,
+    session_id: str = Path(..., max_length=8),
     service: LogService = Depends(),
     current_user: dict = Depends(get_current_user)
 ) -> None:

@@ -49,9 +49,9 @@ class NodeModel(BaseModel):
     )
     firmware_version: Optional[str] = Field(
         ...,
-        pattern=r'^\d+\.\d+$',
-        min_length=3,
-        max_length=10
+        pattern=r'^\d+\.\d+\.\d+$',
+        min_length=5,
+        max_length=20
     )
 
     @field_validator("node_location", "node_type", "node_id")
@@ -91,6 +91,6 @@ class NodeModel(BaseModel):
                 "node_codename": "cibubur-sayuranpagi_pembibitan_1a",
                 "description": "This is a description of the node.",
                 "firmware_url": "https://example.com/firmware/example.ino.bin",
-                "firmware_version": "1.0"
+                "firmware_version": "1.0.0"
             }
         }

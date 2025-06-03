@@ -146,7 +146,7 @@ async def get_firmware_versions(
 )
 async def delete_node(
     node_codename: str = Path(..., min_length=3, max_length=255),
-    firmware_version: Optional[str] = Query(default=None, min_length=3, max_length=10),
+    firmware_version: Optional[str] = Query(default=None, min_length=5, max_length=20),
     service: NodeService = Depends(),
     current_user: dict = Depends(get_current_user)
 ) -> None:
