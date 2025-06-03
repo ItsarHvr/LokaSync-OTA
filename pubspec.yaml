@@ -31,6 +31,7 @@ dependencies:
   file_picker: ^10.1.9       # For picking .bin files from device storage
   http: ^1.4.0                # For sending HTTP POST requests to ESP32
   path: ^1.9.0                # For file path operations
+  mqtt_client: ^10.2.0
 
 dev_dependencies:
   flutter_test:

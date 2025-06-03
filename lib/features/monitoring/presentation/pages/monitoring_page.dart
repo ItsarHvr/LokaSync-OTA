@@ -3,8 +3,31 @@ import 'package:google_fonts/google_fonts.dart';
 import 'dart:math';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:lokasync/presentation/widgets/bottom_navbar.dart';
+import 'package:lokasync/utils/sensor_data_holder.dart';
 
-// Models
+// Sensor metadata for icon/unit/color mapping
+const sensorMeta = {
+  'temperature': {
+    'name': 'Suhu',
+    'unit': '°C',
+    'icon': Icons.thermostat,
+    'color': Color(0xFF2E7D32),
+  },
+  'humidity': {
+    'name': 'Kelembaban',
+    'unit': '%',
+    'icon': Icons.water_drop,
+    'color': Color(0xFF1976D2),
+  },
+  'tds': {
+    'name': 'TDS',
+    'unit': 'PPM',
+    'icon': Icons.opacity,
+    'color': Color(0xFF7B1FA2),
+  },
+  // Add more sensor types here as needed
+};
+
 class SensorData {
   final String id;
   final String name;
@@ -12,6 +35,7 @@ class SensorData {
   final String unit;
   final IconData icon;
   final Color color;
+  final List<double> history;
 
   SensorData({
     required this.id,
@@ -20,142 +44,42 @@ class SensorData {
     required this.unit,
     required this.icon,
     required this.color,
+    required this.history,
   });
+
+  SensorData copyWith({double? value, List<double>? history}) {
+    return SensorData(
+      id: id,
+      name: name,
+      value: value ?? this.value,
+      unit: unit,
+      icon: icon,
+      color: color,
+      history: history ?? this.history,
+    );
+  }
 }
 
 class MonitoringNode {
   final String id;
   final String name;
-  final List<SensorData> sensors;
+  final Map<String, SensorData> sensors;
 
   MonitoringNode({
     required this.id,
     required this.name,
     required this.sensors,
   });
-}
 
-// DataSource Interface - Untuk memudahkan implementasi API nanti
-abstract class MonitoringDataSource {
-  Future<List<MonitoringNode>> getNodes();
-  Future<SensorData> getSensorLatestData(String nodeId, String sensorId);
-}
-
-// Mock Implementation dari DataSource untuk contoh
-class MockMonitoringDataSource implements MonitoringDataSource {
-  @override
-  Future<List<MonitoringNode>> getNodes() async {
-    // Simulasi fetch data dari API
-    await Future.delayed(const Duration(milliseconds: 500));
-    
-    return [
-      MonitoringNode(
-        id: 'node1',
-        name: 'Node 1',
-        sensors: [
-          SensorData(
-            id: 'temp',
-            name: 'Suhu',
-            value: 28.5,
-            unit: '°C',
-            icon: Icons.thermostat,
-            color: const Color(0xFF2E7D32),
-          ),
-          SensorData(
-            id: 'humidity',
-            name: 'Kelembaban',
-            value: 75.8,
-            unit: '%',
-            icon: Icons.water_drop,
-            color: const Color(0xFF1976D2),
-          ),
-        ],
-      ),
-      MonitoringNode(
-        id: 'node2',
-        name: 'Node 2',
-        sensors: [
-          SensorData(
-            id: 'tds',
-            name: 'TDS',
-            value: 130.5,
-            unit: 'PPM',
-            icon: Icons.opacity,
-            color: const Color(0xFF7B1FA2),
-          ),
-        ],
-      ),
-    ];
-  }
-
-  @override
-  Future<SensorData> getSensorLatestData(String nodeId, String sensorId) async {
-    // Simulasi fetch data dari API
-    await Future.delayed(const Duration(milliseconds: 500));
-    
-    // Data dummy
-    if (nodeId == 'node1' && sensorId == 'temp') {
-      return SensorData(
-        id: 'temp',
-        name: 'Suhu',
-        value: 28.5,
-        unit: '°C',
-        icon: Icons.thermostat,
-        color: const Color(0xFF2E7D32),
-      );
-    } else if (nodeId == 'node1' && sensorId == 'humidity') {
-      return SensorData(
-        id: 'humidity',
-        name: 'Kelembaban',
-        value: 75.8,
-        unit: '%',
-        icon: Icons.water_drop,
-        color: const Color(0xFF1976D2),
-      );
-    } else {
-      return SensorData(
-        id: 'tds',
-        name: 'TDS',
-        value: 130.5,
-        unit: 'PPM',
-        icon: Icons.opacity,
-        color: const Color(0xFF7B1FA2),
-      );
-    }
+  MonitoringNode copyWith({Map<String, SensorData>? sensors}) {
+    return MonitoringNode(
+      id: id,
+      name: name,
+      sensors: sensors ?? this.sensors,
+    );
   }
 }
 
-// Repository - Abstraksi untuk akses data
-class MonitoringRepository {
-  final MonitoringDataSource dataSource;
-
-  MonitoringRepository({required this.dataSource});
-
-  Future<List<MonitoringNode>> getNodes() async {
-    return await dataSource.getNodes();
-  }
-
-  Future<SensorData> getSensorLatestData(String nodeId, String sensorId) async {
-    return await dataSource.getSensorLatestData(nodeId, sensorId);
-  }
-}
-
-// View-Model - Untuk komunikasi antara UI dan data
-class MonitoringViewModel {
-  final MonitoringRepository repository;
-  
-  MonitoringViewModel({required this.repository});
-  
-  Future<List<MonitoringNode>> getNodes() async {
-    return await repository.getNodes();
-  }
-  
-  Future<SensorData> getSensorLatestData(String nodeId, String sensorId) async {
-    return await repository.getSensorLatestData(nodeId, sensorId);
-  }
-}
-
-// Main Page
 class Monitoring extends StatefulWidget {
   const Monitoring({super.key});
 
@@ -164,199 +88,138 @@ class Monitoring extends StatefulWidget {
 }
 
 class _MonitoringState extends State<Monitoring> {
-  // Dependency Injection
-  final MonitoringViewModel _viewModel = MonitoringViewModel(
-    repository: MonitoringRepository(
-      dataSource: MockMonitoringDataSource(),
-    ),
-  );
-
-  // Selected state
+  late final SensorDataHolder _dataHolder;
   String? _selectedNodeId;
   String? _selectedSensorId;
-  
-  // Data
-  List<MonitoringNode> _nodes = [];
-  bool _isLoading = true;
-  
-  // Current index untuk bottom navbar
-  final int _currentIndex = 1; // 1 karena Monitoring ada di indeks 1
+  bool _isLoading = false;
+  int _currentIndex = 1;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
-  }
-  
-  Future<void> _loadData() async {
-    setState(() => _isLoading = true);
-    
-    try {
-      _nodes = await _viewModel.getNodes();
-      
-      if (_nodes.isNotEmpty) {
-        _selectedNodeId = _nodes.first.id;
-        
-        if (_nodes.first.sensors.isNotEmpty) {
-          _selectedSensorId = _nodes.first.sensors.first.id;
-        }
-      }
-    } catch (e) {
-      // debugPrint('Error loading monitoring data: ${e.toString()}.');
-      throw Exception('Error loading monitoring data: ${e.toString()}.');
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-  
-  // Mendapatkan node yang sedang dipilih
-  MonitoringNode? get _selectedNode {
-    if (_selectedNodeId == null) return null;
-    return _nodes.firstWhere(
-      (node) => node.id == _selectedNodeId,
-      orElse: () => _nodes.first,
-    );
-  }
-  
-  // Mendapatkan sensor yang sedang dipilih
-  SensorData? get _selectedSensor {
-    final node = _selectedNode;
-    if (node == null || _selectedSensorId == null) return null;
-    
-    try {
-      return node.sensors.firstWhere(
-        (sensor) => sensor.id == _selectedSensorId,
-      );
-    } catch (e) {
-      return node.sensors.isNotEmpty ? node.sensors.first : null;
-    }
+    _dataHolder = SensorDataHolder();
+    _dataHolder.addListener(_onDataUpdate);
+    _autoSelectFirstNodeAndSensor();
   }
 
-  // Data for charts (random data for demonstration)
-  List<FlSpot> _generateChartData(SensorData sensor) {
-    final random = Random();
-    final spots = <FlSpot>[];
-    // Generate data for the last hour (12 data points, 5 min interval)
-    for (int i = 0; i < 12; i++) {
-      // Base value is the current sensor value
-      double baseValue = sensor.value;
-      // Add some random fluctuation (±10% of the value)
-      double fluctuation = (random.nextDouble() * 0.2 - 0.1) * baseValue;
-      double value = (baseValue + fluctuation).clamp(0, double.infinity);
-      
-      // X-axis: time in minutes (60 minutes ago to now)
-      double x = i * 5.0; // 5-minute intervals
-      spots.add(FlSpot(x, value));
+  void _onDataUpdate() {
+    setState(() {
+      _autoSelectFirstNodeAndSensor();
+    });
+  }
+
+  void _autoSelectFirstNodeAndSensor() {
+    // Auto-select first node and sensor if not already selected
+    if (_dataHolder.nodes.isNotEmpty) {
+      _selectedNodeId ??= _dataHolder.nodes.values.first.id;
+      final sensors = _dataHolder.nodes[_selectedNodeId!]?.sensors ?? {};
+      _selectedSensorId ??= sensors.isNotEmpty ? sensors.keys.first : null;
     }
-    return spots;
   }
 
   @override
+  void dispose() {
+    _dataHolder.removeListener(_onDataUpdate);
+    super.dispose();
+  }
+
+  MonitoringNode? get _selectedNode =>
+      _selectedNodeId != null ? _dataHolder.nodes[_selectedNodeId!] : null;
+
+  SensorData? get _selectedSensor =>
+      _selectedSensorId != null ? _selectedNode?.sensors[_selectedSensorId!] : null;
+
+  @override
   Widget build(BuildContext context) {
+    final node = _selectedNode;
+    final sensors = node?.sensors.values.toList() ?? [];
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7F9),
       body: SafeArea(
         child: _isLoading
             ? const Center(child: CircularProgressIndicator(color: Color(0xFF014331)))
-            : _buildContent(),
-      ),
-    bottomNavigationBar: BottomNavBar(
-    currentIndex: _currentIndex,
-    onTap: (index) {
-    if (index != 3) {
-      if (index == 0) {
-        Navigator.pushReplacementNamed(context, '/home');
-      } else if (index == 1) {
-        Navigator.pushReplacementNamed(context, '/monitoring');
-      } else if (index == 2) {
-        Navigator.pushReplacementNamed(context, '/profile');
-      }
-    } else {
-      Navigator.pushReplacementNamed(context, '/ota-update');
-    }
-  },
-),
-    );
-  }
-  
-  Widget _buildContent() {
-    final node = _selectedNode;
-    final sensors = node?.sensors ?? [];
-    
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Header with back button and title
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16.0),
-            child: Row(
-              children: [
-                InkWell(
-                  onTap: () => Navigator.pushReplacementNamed(context, '/home'),
-                  borderRadius: BorderRadius.circular(12),
-                  child: const Icon(Icons.arrow_back, color: Color(0xFF014331), size: 24),
-                ),
-                const SizedBox(width: 32), // Increased from 16 to 32 for more spacing
-                // Title now placed beside the back button
-                Text(
-                  'Monitoring Page',
-                  style: GoogleFonts.poppins(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF014331),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          // Node selector dropdown (now below title and back button)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 16.0),
-            child: _buildNodeDropdown(),
-          ),
-          
-          // Sensor cards - scrollable horizontally
-          SizedBox(
-            height: 110,
-            child: sensors.isEmpty
-                ? const Center(
-                    child: Text('Tidak ada sensor tersedia untuk node ini'),
-                  )
-                : ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: sensors.length,
-                    itemBuilder: (context, index) {
-                      final sensor = sensors[index];
-                      return _buildSensorCard(sensor);
-                    },
-                  ),
-          ),
-          
-          const SizedBox(height: 24),
-          
-          // Visualisasi sensor
-          if (_selectedSensor != null)
-            Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 16.0),
-                  child: _buildSensorVisualization(_selectedSensor!),
+            : Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Header
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16.0),
+                      child: Row(
+                        children: [
+                          InkWell(
+                            onTap: () => Navigator.pushReplacementNamed(context, '/home'),
+                            borderRadius: BorderRadius.circular(12),
+                            child: const Icon(Icons.arrow_back, color: Color(0xFF014331), size: 24),
+                          ),
+                          const SizedBox(width: 32),
+                          Text(
+                            'Monitoring Page',
+                            style: GoogleFonts.poppins(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF014331),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Node selector
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16.0),
+                      child: _buildNodeDropdown(),
+                    ),
+                    // Sensor cards
+                    SizedBox(
+                      height: 110,
+                      child: sensors.isEmpty
+                          ? const Center(child: Text('Tidak ada sensor tersedia untuk node ini'))
+                          : ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: sensors.length,
+                              itemBuilder: (context, index) {
+                                final sensor = sensors[index];
+                                return _buildSensorCard(sensor);
+                              },
+                            ),
+                    ),
+                    const SizedBox(height: 24),
+                    // Sensor visualization
+                    if (_selectedSensor != null)
+                      Expanded(
+                        child: SingleChildScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 16.0),
+                            child: _buildSensorVisualization(_selectedSensor!),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
-            ),
-        ],
+      ),
+      bottomNavigationBar: BottomNavBar(
+        currentIndex: _currentIndex,
+        onTap: (index) {
+          if (index != _currentIndex) {
+            if (index == 0) {
+              Navigator.pushReplacementNamed(context, '/home');
+            } else if (index == 1) {
+              Navigator.pushReplacementNamed(context, '/monitoring');
+            } else if (index == 2) {
+              Navigator.pushReplacementNamed(context, '/profile');
+            } else if (index == 3) {
+              Navigator.pushReplacementNamed(context, '/local-update');
+            }
+          }
+        },
       ),
     );
   }
-  
-  // Widget untuk dropdown pemilihan node
+
   Widget _buildNodeDropdown() {
     return Container(
       height: 50,
@@ -389,21 +252,12 @@ class _MonitoringState extends State<Monitoring> {
             if (newValue != null && newValue != _selectedNodeId) {
               setState(() {
                 _selectedNodeId = newValue;
-                
-                // Reset selected sensor
-                final sensors = _nodes
-                    .firstWhere((node) => node.id == newValue)
-                    .sensors;
-                    
-                if (sensors.isNotEmpty) {
-                  _selectedSensorId = sensors.first.id;
-                } else {
-                  _selectedSensorId = null;
-                }
+                final sensors = _dataHolder.nodes[newValue]?.sensors ?? {};
+                _selectedSensorId = sensors.isNotEmpty ? sensors.keys.first : null;
               });
             }
           },
-          items: _nodes.map<DropdownMenuItem<String>>((node) {
+          items: _dataHolder.nodes.values.map<DropdownMenuItem<String>>((node) {
             return DropdownMenuItem<String>(
               value: node.id,
               child: Text(node.name),
@@ -413,11 +267,9 @@ class _MonitoringState extends State<Monitoring> {
       ),
     );
   }
-  
-  // Widget untuk card sensor
+
   Widget _buildSensorCard(SensorData sensor) {
     final bool isSelected = _selectedSensorId == sensor.id;
-    
     return GestureDetector(
       onTap: () {
         setState(() => _selectedSensorId = sensor.id);
@@ -431,7 +283,7 @@ class _MonitoringState extends State<Monitoring> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    sensor.color, 
+                    sensor.color,
                     HSLColor.fromColor(sensor.color)
                         .withLightness(HSLColor.fromColor(sensor.color).lightness * 0.7)
                         .toColor()
@@ -442,7 +294,7 @@ class _MonitoringState extends State<Monitoring> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: isSelected 
+              color: isSelected
                   ? HSLColor.fromColor(sensor.color)
                         .withLightness(HSLColor.fromColor(sensor.color).lightness * 0.3)
                         .toColor()
@@ -485,8 +337,7 @@ class _MonitoringState extends State<Monitoring> {
       ),
     );
   }
-  
-  // Widget untuk visualisasi sensor
+
   Widget _buildSensorVisualization(SensorData sensor) {
     return Container(
       width: double.infinity,
@@ -508,11 +359,10 @@ class _MonitoringState extends State<Monitoring> {
         crossAxisAlignment: CrossAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Chart title
           Padding(
             padding: const EdgeInsets.only(bottom: 8.0),
             child: Text(
-              'Data dalam 1 jam terakhir',
+              'Monitoring Data Real-time',
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -520,8 +370,6 @@ class _MonitoringState extends State<Monitoring> {
               ),
             ),
           ),
-          
-          // Chart visualization
           SizedBox(
             height: 250,
             child: _buildSensorChart(sensor),
@@ -530,13 +378,15 @@ class _MonitoringState extends State<Monitoring> {
       ),
     );
   }
-  
-  // New chart visualization widgets
+
   Widget _buildSensorChart(SensorData sensor) {
     final chartData = _generateChartData(sensor);
+    if (chartData.isEmpty) {
+      return const Center(child: Text('Belum ada data'));
+    }
     final minY = chartData.map((spot) => spot.y).reduce(min) * 0.9;
     final maxY = chartData.map((spot) => spot.y).reduce(max) * 1.1;
-    
+
     return Padding(
       padding: const EdgeInsets.only(right: 16, left: 0, top: 16, bottom: 12),
       child: LineChart(
@@ -571,14 +421,14 @@ class _MonitoringState extends State<Monitoring> {
               sideTitles: SideTitles(
                 showTitles: true,
                 reservedSize: 30,
-                interval: 10, // 10 minute intervals
+                interval: 10,
                 getTitlesWidget: (value, meta) {
-                  int minutes = 60 - value.toInt();
-                  if (minutes % 10 == 0 || minutes == 0 || minutes == 60) {
+                  int seconds = value.toInt();
+                  if (seconds % 10 == 0 || seconds == 0 || seconds == 60) {
                     return Padding(
                       padding: const EdgeInsets.only(top: 8.0),
                       child: Text(
-                        minutes == 0 ? 'now' : '$minutes min',
+                        seconds == 0 ? 'now' : '$seconds s',
                         style: GoogleFonts.poppins(
                           color: Colors.grey.shade600,
                           fontSize: 10,
@@ -595,7 +445,6 @@ class _MonitoringState extends State<Monitoring> {
                 showTitles: true,
                 interval: (maxY - minY) / 4,
                 getTitlesWidget: (value, meta) {
-                  // Only show a reasonable number of decimal places
                   String displayValue = value.toStringAsFixed(
                     sensor.unit == '°C' || sensor.unit == '%' ? 1 : 0
                   );
@@ -619,14 +468,12 @@ class _MonitoringState extends State<Monitoring> {
             ),
           ),
           minX: 0,
-          maxX: 60, // 60 minutes
+          maxX: 60,
           minY: minY,
           maxY: maxY,
           lineBarsData: [
             LineChartBarData(
-              spots: chartData.map((spot) => 
-                FlSpot(60 - spot.x, spot.y) // Reverse x-axis (60 min ago to now)
-              ).toList(),
+              spots: chartData,
               isCurved: true,
               color: sensor.color,
               barWidth: 3,
@@ -652,12 +499,8 @@ class _MonitoringState extends State<Monitoring> {
               },
               getTooltipItems: (List<LineBarSpot> touchedSpots) {
                 return touchedSpots.map((LineBarSpot touchedSpot) {
-                  // Calculate time (x-axis is inverted)
-                  int minutesAgo = (60 - touchedSpot.x).round();
-                  String timeText = minutesAgo == 0 
-                      ? 'now' 
-                      : '$minutesAgo min ago';
-                  
+                  int seconds = touchedSpot.x.round();
+                  String timeText = seconds == 0 ? 'now' : '$seconds s ago';
                   return LineTooltipItem(
                     '${touchedSpot.y.toStringAsFixed(1)} ${sensor.unit}\n$timeText',
                     GoogleFonts.poppins(
@@ -672,5 +515,17 @@ class _MonitoringState extends State<Monitoring> {
         ),
       ),
     );
+  }
+
+  List<FlSpot> _generateChartData(SensorData sensor) {
+    final history = sensor.history;
+    final spots = <FlSpot>[];
+    final int n = history.length;
+    for (int i = 0; i < n; i++) {
+      // Newest data is at x=0, next at x=5, ..., oldest at x=(n-1)*5
+      double x = i * 5;
+      spots.add(FlSpot(x, history[n - 1 - i]));
+    }
+    return spots;
   }
 }

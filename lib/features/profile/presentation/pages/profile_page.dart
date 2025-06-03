@@ -77,7 +77,7 @@ void _onItemTapped(int index) {
   } else if (index == 1) {
     Navigator.pushReplacementNamed(context, '/monitoring');
   } else if (index == 3) {
-    Navigator.pushReplacementNamed(context, '/ota-update');
+    Navigator.pushReplacementNamed(context, '/local-update');
   }
 }
 

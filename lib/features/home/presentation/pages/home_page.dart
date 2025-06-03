@@ -164,7 +164,7 @@ void _onItemTapped(int index) {
   } else if (index == 2) {
     Navigator.pushReplacementNamed(context, '/profile');
   } else if (index == 3) {
-    Navigator.pushReplacementNamed(context, '/ota-update');
+    Navigator.pushReplacementNamed(context, '/local-update');
   }
 }
   
