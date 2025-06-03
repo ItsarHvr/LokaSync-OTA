@@ -87,6 +87,15 @@ class Monitoring extends StatefulWidget {
   State<Monitoring> createState() => _MonitoringState();
 }
 
+Map<String, String> parseCodename(String codename) {
+  final parts = codename.split('_');
+  return {
+    'location': parts[0].toUpperCase(),
+    'type': parts.length > 1 ? parts[1].toUpperCase() : '',
+    'id': parts.length > 2 ? parts[2].toUpperCase() : '',
+  };
+}
+
 class _MonitoringState extends State<Monitoring> {
   late final SensorDataHolder _dataHolder;
   String? _selectedNodeId;
@@ -220,53 +229,322 @@ class _MonitoringState extends State<Monitoring> {
     );
   }
 
-  Widget _buildNodeDropdown() {
-    return Container(
-      height: 50,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.shade200,
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: _selectedNodeId,
-          isExpanded: true,
-          icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFF014331)),
-          elevation: 0,
-          style: GoogleFonts.poppins(
-            color: const Color(0xFF014331),
-            fontWeight: FontWeight.w500,
-            fontSize: 16,
-          ),
-          dropdownColor: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          onChanged: (String? newValue) {
-            if (newValue != null && newValue != _selectedNodeId) {
-              setState(() {
-                _selectedNodeId = newValue;
-                final sensors = _dataHolder.nodes[newValue]?.sensors ?? {};
-                _selectedSensorId = sensors.isNotEmpty ? sensors.keys.first : null;
-              });
-            }
-          },
-          items: _dataHolder.nodes.values.map<DropdownMenuItem<String>>((node) {
-            return DropdownMenuItem<String>(
-              value: node.id,
-              child: Text(node.name),
-            );
-          }).toList(),
-        ),
-      ),
-    );
+Widget _buildNodeDropdown() {
+  // Group nodes by location and type
+  final nodes = _dataHolder.nodes.values.toList();
+  final Map<String, Map<String, List<MonitoringNode>>> categorized = {};
+  
+  for (final node in nodes) {
+    final parsed = parseCodename(node.id);
+    final loc = parsed['location']!;
+    final type = parsed['type']!;
+    categorized.putIfAbsent(loc, () => {});
+    categorized[loc]!.putIfAbsent(type, () => []);
+    categorized[loc]![type]!.add(node);
   }
+  
+  // Build dropdowns
+  final locations = categorized.keys.toList()..sort();
+  String? selectedLocation = _selectedNodeId != null
+      ? parseCodename(_selectedNodeId!)['location']
+      : (locations.isNotEmpty ? locations.first : null);
+      
+  final types = (selectedLocation != null && categorized[selectedLocation] != null)
+      ? (categorized[selectedLocation]!.keys.toList()..sort())
+      : <String>[];
+      
+  String? selectedType = _selectedNodeId != null
+      ? parseCodename(_selectedNodeId!)['type']
+      : (types.isNotEmpty ? types.first : null);
+      
+  final ids = (selectedLocation != null && selectedType != null && categorized[selectedLocation] != null && categorized[selectedLocation]![selectedType] != null)
+      ? categorized[selectedLocation]![selectedType]!
+          .map((n) => parseCodename(n.id)['id']!)
+          .toList()
+      : <String>[];
+      
+  String? selectedId = _selectedNodeId != null
+      ? parseCodename(_selectedNodeId!)['id']
+      : (ids.isNotEmpty ? ids.first : null);
+
+  return Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.grey.shade200,
+          blurRadius: 8,
+          spreadRadius: 2,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Location Dropdown (Full width at top)
+        Text(
+          'Lokasi Node',
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: Colors.grey.shade600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(12),
+            color: Colors.grey.shade50,
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: selectedLocation,
+              isExpanded: true,
+              hint: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  'Pilih Lokasi',
+                  style: GoogleFonts.poppins(
+                    color: Colors.grey.shade500,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              icon: Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  color: Colors.grey.shade600,
+                  size: 24,
+                ),
+              ),
+              style: GoogleFonts.poppins(
+                color: const Color(0xFF014331),
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+              dropdownColor: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              elevation: 8,
+              onChanged: (loc) {
+                setState(() {
+                  if (loc != null && categorized[loc] != null && categorized[loc]!.isNotEmpty) {
+                    final firstType = categorized[loc]!.keys.first;
+                    final firstNode = categorized[loc]![firstType]!.first;
+                    _selectedNodeId = firstNode.id;
+                    final sensors = firstNode.sensors;
+                    _selectedSensorId = sensors.isNotEmpty ? sensors.keys.first : null;
+                  }
+                });
+              },
+              items: locations.map((loc) => DropdownMenuItem(
+                value: loc,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Text(
+                    loc.replaceAll('-', ' - '),
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              )).toList(),
+            ),
+          ),
+        ),
+        
+        const SizedBox(height: 20),
+        
+        // Type and ID Dropdowns (Side by side at bottom)
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Type Dropdown (Larger - 2/3 width)
+            Expanded(
+              flex: 2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Tipe Node',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.grey.shade50,
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: selectedType,
+                        isExpanded: true,
+                        hint: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Text(
+                            'Tipe',
+                            style: GoogleFonts.poppins(
+                              color: Colors.grey.shade500,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                        icon: Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: Colors.grey.shade600,
+                            size: 20,
+                          ),
+                        ),
+                        style: GoogleFonts.poppins(
+                          color: const Color(0xFF014331),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        dropdownColor: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        elevation: 8,
+                        onChanged: (type) {
+                          setState(() {
+                            if (selectedLocation != null &&
+                                type != null &&
+                                categorized[selectedLocation] != null &&
+                                categorized[selectedLocation]![type] != null &&
+                                categorized[selectedLocation]![type]!.isNotEmpty) {
+                              final firstNode = categorized[selectedLocation]![type]!.first;
+                              _selectedNodeId = firstNode.id;
+                              final sensors = firstNode.sensors;
+                              _selectedSensorId = sensors.isNotEmpty ? sensors.keys.first : null;
+                            }
+                          });
+                        },
+                        items: types.map((type) => DropdownMenuItem(
+                          value: type,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            child: Text(
+                              type,
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        )).toList(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            const SizedBox(width: 12),
+            
+            // ID Dropdown (Smaller - 1/3 width)
+            Expanded(
+              flex: 1,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'ID',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.grey.shade50,
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: selectedId,
+                        isExpanded: true,
+                        hint: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Text(
+                            'ID',
+                            style: GoogleFonts.poppins(
+                              color: Colors.grey.shade500,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                        icon: Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: Colors.grey.shade600,
+                            size: 18,
+                          ),
+                        ),
+                        style: GoogleFonts.poppins(
+                          color: const Color(0xFF014331),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        dropdownColor: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        elevation: 8,
+                        onChanged: (id) {
+                          setState(() {
+                            if (selectedLocation != null &&
+                                selectedType != null &&
+                                id != null &&
+                                categorized[selectedLocation] != null &&
+                                categorized[selectedLocation]![selectedType] != null) {
+                              try {
+                                final node = categorized[selectedLocation]![selectedType]!
+                                    .firstWhere((n) => parseCodename(n.id)['id'] == id);
+                                _selectedNodeId = node.id;
+                                final sensors = node.sensors;
+                                _selectedSensorId = sensors.isNotEmpty ? sensors.keys.first : null;
+                              } catch (e) {
+                                // Handle case where node is not found
+                                debugPrint('Node not found: $e');
+                              }
+                            }
+                          });
+                        },
+                        items: ids.map((id) => DropdownMenuItem(
+                          value: id,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                            child: Text(
+                              id,
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        )).toList(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildSensorCard(SensorData sensor) {
     final bool isSelected = _selectedSensorId == sensor.id;
