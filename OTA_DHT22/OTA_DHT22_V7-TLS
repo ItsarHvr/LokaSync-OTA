@@ -22,9 +22,9 @@ const char* topic_log = "LokaSync/CloudLog/OTAUpdate";
 const char* topic_ota = "LokaSync/CloudOTA/FirmwareUpdate";
 
 const char* NODE_LOCATION = "Cibubur-SayuranPagi";
-const char* NODE_TYPE = "Peremajaan";
-const char* NODE_ID = "2B";
-const char* NODE_CODENAME = "cibubur-sayuranpagi_peremajaan_2b";
+const char* NODE_TYPE = "Penyemaian";
+const char* NODE_ID = "1A";
+const char* NODE_CODENAME = "cibubur-sayuranpagi_penyemaian_1a";
 const char* CURRENT_VERSION = "1.1";
 String currentSessionId = "";
 
