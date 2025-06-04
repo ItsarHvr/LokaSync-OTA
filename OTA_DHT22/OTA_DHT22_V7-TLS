@@ -6,31 +6,36 @@
 #include <ArduinoJson.h>
 #include <WiFiClientSecure.h>
 
-#define DHTPIN 5
-#define DHTTYPE DHT22
+#define DHTPIN 4
+#define DHTTYPE DHT11
 #define MAX_SSID 3
+#define MQTT_MAX_PACKET_SIZE 1024
 
 DHT dht(DHTPIN, DHTTYPE);
 const char* ssidList[MAX_SSID] = {"INDOMIE AYAM BAWANG", "AMBATUSPOT", "INDOMIE SOTO"};
 const char* passList[MAX_SSID] = {"agustus2023", "123456789", "123443211234"};
 
-const char* mqtt_server = "server";
+const char* mqtt_server = "i139f81d.ala.eu-central-1.emqxsl.com";
 const int mqtt_port = 8883;
-const char* topic_sensor = "Monitoring";
-const char* topic_log = "OTAUpdate";
-const char* topic_ota = "FirmwareUpdate";
+const char* topic_sensor = "LokaSync/CloudSensor/Monitoring";
+const char* topic_log = "LokaSync/CloudLog/OTAUpdate";
+const char* topic_ota = "LokaSync/CloudOTA/FirmwareUpdate";
 
 const char* NODE_LOCATION = "Cibubur-SayuranPagi";
-const char* NODE_TYPE = "Penyemaian";
-const char* NODE_ID = "1a";
-const char* NODE_CODENAME = "cibubur-sayuranpagi_penyemaian_1a";
-const char* CURRENT_VERSION = "1.0.0";
+const char* NODE_TYPE = "Peremajaan";
+const char* NODE_ID = "2B";
+const char* NODE_CODENAME = "cibubur-sayuranpagi_peremajaan_2b";
+const char* CURRENT_VERSION = "1.1";
+String currentSessionId = "";
 
 // TLS Cert
 const char* ca_cert = R"EOF(
 -----BEGIN CERTIFICATE-----
+
 -----END CERTIFICATE-----
 )EOF";
+const char* mqtt_user = "user";
+const char* mqtt_pass = "pw";
 
 WiFiClientSecure secureClient;
 PubSubClient client(secureClient);
@@ -45,9 +50,14 @@ void publishOtaLog(const char* message, JsonObject data = JsonObject()) {
   doc["message"] = message;
   doc["node_location"] = NODE_LOCATION;
   doc["node_type"] = NODE_TYPE;
+  doc["node_id"] = NODE_ID;
   doc["node_codename"] = NODE_CODENAME;
   doc["node_mac"] = macSuffix;
   doc["firmware_version"] = CURRENT_VERSION;
+  if (currentSessionId != "") {
+  doc["session_id"] = currentSessionId;
+  }
+
   if (!data.isNull()) doc["data"] = data;
 
   char buffer[1024];
@@ -94,7 +104,7 @@ void reconnectMQTT() {
     macSuffix.replace(":", "");
     String clientId = "ESP32_" + String(NODE_CODENAME) + "_" + macSuffix;
 
-    if (client.connect(clientId.c_str(), "username", "password")) {
+    if (client.connect(clientId.c_str(), mqtt_user, mqtt_pass)) {
       client.subscribe(topic_ota);
       Serial.println("MQTT TLS+Auth connected");
     } else {
@@ -228,6 +238,12 @@ void callback(char* topic, byte* payload, unsigned int length) {
       return;
     }
 
+    if (doc.containsKey("session_id")) {
+      currentSessionId = doc["session_id"].as<String>();
+    } else {
+      currentSessionId = "";
+    }
+
     if (targetVersion && strcmp(targetVersion, CURRENT_VERSION) == 0) {
       publishOtaLog("Firmware already up to date");
       return;
@@ -238,7 +254,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
 }
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(9600);
   dht.begin();
   connectToWiFi();
   client.setServer(mqtt_server, mqtt_port);
