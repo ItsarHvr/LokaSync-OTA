@@ -13,9 +13,11 @@ class Log(BaseModel):
     timestamp:datetime
     firmware_version:str
     node_mac:Optional[str] = None
+    session_id:str
     data: Optional[Dict[str, Any]] = None
     firmware_size:Optional[float] = None
     firmware_bytes:Optional[int] = None
+    firmware_written:Optional[int] = None
     download_times:Optional[float] = None
     download_speed:Optional[float] = None
     download_status:str

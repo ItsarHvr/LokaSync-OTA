@@ -61,6 +61,7 @@ class LogRepository:
                 data=doc.get("data"),
                 firmware_size=doc["firmware_size"],
                 firmware_bytes=doc["firmware_bytes"],
+                firmware_written=doc["firmware_written"],
                 download_times=doc["download_times"],
                 download_speed=doc["download_speed"],
                 download_status=doc["download_status"],
@@ -118,7 +119,8 @@ class LogRepository:
 
             filter_query = {
                 "node_codename": log_data["node_codename"],
-                "firmware_version": log_data["firmware_version"]
+                "firmware_version": log_data["firmware_version"],
+                "session_id": log_data["session_id"]
             }
 
             if is_group:
@@ -156,14 +158,12 @@ class LogRepository:
                 update_fields["download_speed"] = log_data.get("data", {}).get("speed_kbps")
             if "download complete" in msg:
                 update_fields["download_status"] = "success"
+            if "download mismatch" in msg:
+                update_fields["download_status"] = "mismatch"
+                update_fields["ota_status"] = "failed"
+                update_fields["firmware_written"] = log_data.get("data", {}).get("written")
             if "ota update complete" in msg:
                 update_fields["ota_status"] = "success"
-
-            if "ota update started" in msg:
-                update_fields["download_status"] = "pending"
-                update_fields["ota_status"] = "pending"
-                default_fields["download_speed"] = None
-                default_fields["download_times"] = None
 
             if "firmware_size" not in update_fields:
                 default_fields["firmware_size"] = None
