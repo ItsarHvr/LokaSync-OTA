@@ -1,6 +1,6 @@
-from urllib.parse import urlparse
 from fastapi import File, UploadFile, Form
-from pydantic import BaseModel, Field, HttpUrl, field_validator
+from fastapi.exceptions import RequestValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 from typing import Optional, List
 
 from cores.config import env
@@ -12,7 +12,9 @@ from schemas.common import (
 )
 from utils.validator import (
     validate_input,
-    sanitize_input
+    sanitize_input,
+    validate_version,
+    validate_url
 )
 
 
@@ -74,11 +76,10 @@ class NodeModifyVersionSchema(BaseModel):
 
     firmware_version: str = Field(
         ...,
-        pattern=r'^\d+\.\d+(\.\d+)?$',
         max_length=20,
         description="Firmware version in x.y.z format (e.g., 1.0.0)"
     )
-    firmware_url: Optional[HttpUrl] = Field(
+    firmware_url: Optional[str] = Field(
         default=None,
         description="Direct URL to the firmware file (if firmware file is not provided)"
     )
@@ -92,11 +93,10 @@ class NodeModifyVersionSchema(BaseModel):
         cls,
         firmware_version: str = Form(
             ..., 
-            pattern=r'^\d+\.\d+(\.\d+)?$',
             max_length=20,
             description="Firmware version in x.y.z format (e.g., 1.0.0)"
         ),
-        firmware_url: Optional[HttpUrl] = Form(
+        firmware_url: Optional[str] = Form(
             default=None,
             description="Direct URL to the firmware file (if firmware file is not provided)"
         ),
@@ -106,42 +106,25 @@ class NodeModifyVersionSchema(BaseModel):
         )
     ):
         """ Create an instance of NodeModifyVersionSchema from form data."""
-        return cls(
-            firmware_version=firmware_version,
-            firmware_url=firmware_url,
-            firmware_file=firmware_file
-        )
+        try:
+            return cls(
+                firmware_version=firmware_version,
+                firmware_url=firmware_url,
+                firmware_file=firmware_file
+            )
+        except ValidationError as e:
+            raise RequestValidationError(e.errors())
+    
+    @field_validator("firmware_version")
+    def validate_firmware_version(cls, v):
+        return validate_version(v)
 
     @field_validator("firmware_url")
     def validate_firmware_url(cls, v):
-        # Handle empty strings from form data
-        if v is not None and v.strip() == "":
-            return None
-            
         if v is not None:
-            # Basic URL validation using urlparse
-            try:
-                parsed = urlparse(v)
-                
-                # Check if scheme is present and valid
-                if not parsed.scheme or parsed.scheme not in ['http', 'https']:
-                    raise ValueError("URL must start with http:// or https://")
-                
-                # Check if netloc (domain) is present
-                if not parsed.netloc:
-                    raise ValueError("URL must contain a valid domain")
-                
-                # Basic domain validation (should have at least one dot for TLD)
-                if '.' not in parsed.netloc:
-                    raise ValueError("URL must contain a valid domain with TLD (e.g., .com, .org)")
-                
-                # Don't sanitize here to preserve URL encoding like %20, %2F, etc.
-                return v
-                
-            except Exception as e:
-                raise ValueError(f"Invalid URL format: {str(e)}")
+            return validate_url(v)
         return v
-
+    
     @field_validator("firmware_file")
     def validate_firmware_file(cls, v):
         # Handle empty file uploads
@@ -149,11 +132,13 @@ class NodeModifyVersionSchema(BaseModel):
             return None
         return v
 
+
     class Config:
         json_schema_extra = {
             "example": {
                 "firmware_version": "1.0.0",
                 "firmware_url": "https://example.com/firmware/example.ino.bin",
+                "firmware_file": None  # Optional, can be a file upload
             }
         }
 

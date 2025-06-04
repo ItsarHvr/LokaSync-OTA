@@ -2,8 +2,6 @@ from io import BytesIO
 from fastapi import Depends, HTTPException, UploadFile, requests
 from typing import Dict, Any, List, Optional, Tuple
 
-from pydantic import ValidationError
-
 from repositories.node import NodeRepository
 from models.node import NodeModel
 from schemas.node import NodeCreateSchema, NodeModifyVersionSchema
@@ -17,18 +15,6 @@ class NodeService:
     def __init__(self, nodes_repository: NodeRepository = Depends()):
         self.nodes_repository = nodes_repository
     
-    def _validate_firmware_url_accessibility(self, firmware_url: str) -> bool:
-        """
-        Method helper to validate if the firmware URL is accessible.
-        """
-        try:
-            # Make a HEAD request to check if URL is accessible without downloading
-            response = requests.head(firmware_url, timeout=10, allow_redirects=True)
-            return response.status_code == 200
-        except Exception as e:
-            logger.api_warning(f"Service: URL accessibility check failed: {str(e)}")
-            return False
-
     async def add_new_node(self, data: NodeCreateSchema) -> Optional[NodeModel]:
         logger.api_info(f"Service: Adding new node with data", data.model_dump())
         added = await self.nodes_repository.add_new_node(data)
@@ -61,11 +47,6 @@ class NodeService:
         if not firmware_file and not firmware_url:
             logger.api_error("Service: Either firmware file or URL must be provided")
             raise HTTPException(400, "Either firmware file or URL must be provided.") 
-
-        # # Business Logic: Optional URL accessibility check (you can disable this if too strict)
-        if firmware_url and not self._validate_firmware_url_accessibility(firmware_url):
-            logger.api_warning("Service: Firmware URL is not accessible")
-            raise HTTPException(400, "Firmware URL is not accessible. Please check the URL.")
 
         # Business Logic: Validate file type if file is provided
         if firmware_file and not firmware_file.filename.endswith('.bin'):
