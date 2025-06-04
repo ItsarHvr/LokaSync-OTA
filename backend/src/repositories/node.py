@@ -1,12 +1,11 @@
-from fastapi import Depends
-from pymongo import ASCENDING, DESCENDING
+from fastapi import Depends, UploadFile
+from pymongo import DESCENDING
 from typing import Dict, Any, List, Optional
 from motor.motor_asyncio import (
     AsyncIOMotorDatabase,
     AsyncIOMotorCollection
 )
 
-from enums.log import LogStatus
 from models.node import NodeModel
 from schemas.node import NodeCreateSchema
 from schemas.common import BaseFilterOptions
@@ -17,6 +16,8 @@ from cores.dependencies import (
 from utils.datetime import get_current_datetime
 from utils.validator import set_codename
 from utils.logger import logger
+from externals.gdrive.upload import upload_firmware_to_gdrive
+from externals.gdrive.delete import delete_firmware_from_gdrive
 
 
 class NodeRepository:
@@ -27,6 +28,24 @@ class NodeRepository:
     ):
         self.db = db
         self.nodes_collection = nodes_collection
+
+    def _extract_file_id_from_gdrive_url(self, url: str) -> Optional[str]:
+        """
+        Helper method to extract Google Drive file ID from URL.
+        
+        Args:
+            url: Google Drive URL
+            
+        Returns:
+            File ID if found, None otherwise
+        """
+        if 'drive.google.com' in url:
+            if 'id=' in url:
+                return url.split('id=')[1].split('&')[0]
+            elif '/d/' in url:
+                # Handle sharing URLs like https://drive.google.com/file/d/FILE_ID/view
+                return url.split('/d/')[1].split('/')[0]
+        return None
 
     async def add_new_node(self, node_data: NodeCreateSchema) -> Optional[NodeModel]:
         node_codename = set_codename(node_data.node_location, node_data.node_type, node_data.node_id)
@@ -59,15 +78,21 @@ class NodeRepository:
     async def upsert_firmware(
         self,
         node_codename: str,
-        firmware_url: str,
-        firmware_version: str
+        firmware_version: str,
+        firmware_url: Optional[str] = None,
+        firmware_file: Optional[UploadFile] = None
     ) -> Optional[NodeModel]:
+        """
+        Upsert firmware with support for both file upload and URL.
+        MongoDB only accepts firmware_url, so we handle file upload here.
+        """
         logger.db_info(f"Repository: Upserting firmware '{firmware_version}' for node '{node_codename}'")
         
+        # Get existing node
         node = await self.nodes_collection.find_one({"node_codename": node_codename})
         now = get_current_datetime()
 
-        # Check if this firmware version already exists for a specific node
+        # Check if this firmware version already exists for the specific node
         version_exist = await self.nodes_collection.find_one({
             "node_codename": node_codename,
             "firmware_version": firmware_version
@@ -77,13 +102,31 @@ class NodeRepository:
             logger.db_warning(f"Repository: Firmware version '{firmware_version}' already exists for node '{node_codename}'")
             return None
 
+        # Determine final firmware URL
+        final_firmware_url = firmware_url
+        
+        # If file is provided, upload to Google Drive and get URL
+        if firmware_file:
+            upload_result = await upload_firmware_to_gdrive(
+                firmware_file, 
+                node_codename, 
+                firmware_version
+            )
+            
+            if not upload_result:
+                logger.db_error(f"Repository: Failed to upload firmware file to Google Drive")
+                return None
+            
+            final_firmware_url = upload_result['download_url']
+            logger.db_info(f"Repository: Firmware uploaded to Google Drive: {upload_result['filename']}")
+
         # If node exists and has no firmware version, update with the first firmware version
         if node and (not node.get("firmware_url") and not node.get("firmware_version")):
             # Update existing node with first firmware
             result = await self.nodes_collection.find_one_and_update(
                 {"node_codename": node_codename},
                 {"$set": {
-                    "firmware_url": firmware_url,
+                    "firmware_url": final_firmware_url,
                     "firmware_version": firmware_version,
                     "latest_updated": now
                 }},
@@ -97,7 +140,7 @@ class NodeRepository:
             # Create new node document with same codename but new firmware
             new_doc = node.copy() if node else {}
             new_doc.update({
-                "firmware_url": firmware_url,
+                "firmware_url": final_firmware_url,
                 "firmware_version": firmware_version,
                 "latest_updated": now,
                 "created_at": now,
@@ -109,6 +152,48 @@ class NodeRepository:
 
             logger.db_info(f"Repository: Created new firmware version '{firmware_version}' for node '{node_codename}' with ID: {result.inserted_id}")
             return NodeModel(**new_doc) if new_doc else None
+    
+    async def get_firmware_download_info(self, node_codename: str, firmware_version: str = None) -> Optional[dict]:
+        """
+        Get firmware download information for a specific node and version.
+        This method looks correct - it handles both specific version and latest version scenarios.
+        """
+        logger.db_info(f"Repository: Getting firmware download info for node '{node_codename}' version '{firmware_version}'")
+        
+        query = {"node_codename": node_codename}
+        if firmware_version:
+            query["firmware_version"] = firmware_version
+        
+        if firmware_version:
+            doc = await self.nodes_collection.find_one(query)
+        else:
+            # Get latest version
+            doc = await (
+                self.nodes_collection
+                .find(query)
+                .sort("firmware_version", DESCENDING)
+                .limit(1)
+                .to_list(length=1)
+            )
+            doc = doc[0] if doc else None
+        
+        if not doc:
+            logger.db_warning(f"Repository: No firmware found for node '{node_codename}' version '{firmware_version}'")
+            return None
+        
+        firmware_url = doc.get('firmware_url')
+        if not firmware_url:
+            logger.db_warning(f"Repository: No firmware URL found for node '{node_codename}'")
+            return None
+        
+        return {
+            'node_codename': doc['node_codename'],
+            'firmware_version': doc['firmware_version'],
+            'firmware_url': firmware_url,
+            'description': doc.get('description', ''),
+            'created_at': doc.get('created_at'),
+            'latest_updated': doc.get('latest_updated')
+        }
 
     async def update_description(
         self,
@@ -148,8 +233,23 @@ class NodeRepository:
             return NodeModel(**doc) if doc else None
 
     async def delete_node(self, node_codename: str, firmware_version: Optional[str]) -> int:
+        """
+        Delete node(s) and associated Google Drive files.
+        """
         logger.db_info(f"Repository: Deleting node '{node_codename}' - Version: '{firmware_version}'")
 
+        # Get documents to be deleted to extract Google Drive file IDs
+        query = {"node_codename": node_codename}
+        if firmware_version:
+            query["firmware_version"] = firmware_version
+
+        docs_to_delete = await self.nodes_collection.find(query).to_list(length=None)
+        
+        if not docs_to_delete:
+            logger.db_warning(f"Repository: No documents found to delete for '{node_codename}' version '{firmware_version}'")
+            return 0
+
+        # First, delete from MongoDB to ensure data consistency
         if firmware_version:
             result = await self.nodes_collection.delete_one({
                 "node_codename": node_codename,
@@ -159,6 +259,26 @@ class NodeRepository:
         else:
             result = await self.nodes_collection.delete_many({"node_codename": node_codename})
             logger.db_info(f"Repository: Deleted {result.deleted_count} node(s) for '{node_codename}' (all versions)")
+
+        # Then delete Google Drive files (even if some fail, we've already removed the DB records)
+        gdrive_deletion_success = True
+        for doc in docs_to_delete:
+            firmware_url = doc.get('firmware_url')
+            if firmware_url:
+                file_id = self._extract_file_id_from_gdrive_url(firmware_url)
+                if file_id:
+                    deletion_success = delete_firmware_from_gdrive(file_id)
+                    if not deletion_success:
+                        logger.db_warning(f"Repository: Failed to delete Google Drive file with ID: {file_id}")
+                        gdrive_deletion_success = False
+                    else:
+                        logger.db_info(f"Repository: Successfully deleted Google Drive file with ID: {file_id}")
+
+        # Log overall result
+        if not gdrive_deletion_success:
+            logger.db_warning(f"Repository: Some Google Drive files could not be deleted, but MongoDB records were removed")
+        else:
+            logger.db_info(f"Repository: Successfully deleted both MongoDB records and Google Drive files")
 
         return result.deleted_count
 

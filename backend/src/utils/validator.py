@@ -8,7 +8,7 @@ def sanitize_input(value: str) -> str:
     
     Target input is only for `description`, which is flexible but needs to be safe for HTML rendering.
     """
-    ALLOWED_CHARS_REGEX = re.compile(r"^[\w\s.,:;!?()\-_/']*$")  # <-- changed + to *
+    ALLOWED_CHARS_REGEX = re.compile(r"^[\w\s.,:;!?()\-_/']*$")
     value = escape(value)
     value = re.sub(r"[\x00-\x1f\x7f]", "", value)
     if not ALLOWED_CHARS_REGEX.fullmatch(value):

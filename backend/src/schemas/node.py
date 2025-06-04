@@ -1,6 +1,9 @@
-from pydantic import BaseModel, Field, field_validator
+from urllib.parse import urlparse
+from fastapi import File, UploadFile, Form
+from pydantic import BaseModel, Field, HttpUrl, field_validator
 from typing import Optional, List
 
+from cores.config import env
 from models.node import NodeModel
 from schemas.common import (
     BaseAPIResponse,
@@ -50,7 +53,6 @@ class NodeCreateSchema(BaseModel):
             return sanitize_input(v)
         return v
 
-
     class Config:
         json_schema_extra = {
             "example": {
@@ -72,27 +74,86 @@ class NodeModifyVersionSchema(BaseModel):
 
     firmware_version: str = Field(
         ...,
-        pattern=r'^\d+\.\d+\.\d+$',
+        pattern=r'^\d+\.\d+(\.\d+)?$',
         max_length=20,
         description="Firmware version in x.y.z format (e.g., 1.0.0)"
     )
-    firmware_url: str = Field(
-        ...,
-        min_length=15,
-        pattern=r'^https?://.*$',
-        description="Direct URL to the firmware file (provide if not uploading a file)"
+    firmware_url: Optional[HttpUrl] = Field(
+        default=None,
+        description="Direct URL to the firmware file (if firmware file is not provided)"
     )
-    
+    firmware_file: Optional[UploadFile] = Field(
+        default=None,
+        description="Firmware file to upload (if firmware_url is not provided)"
+    )
+
+    @classmethod
+    def as_form(
+        cls,
+        firmware_version: str = Form(
+            ..., 
+            pattern=r'^\d+\.\d+(\.\d+)?$',
+            max_length=20,
+            description="Firmware version in x.y.z format (e.g., 1.0.0)"
+        ),
+        firmware_url: Optional[HttpUrl] = Form(
+            default=None,
+            description="Direct URL to the firmware file (if firmware file is not provided)"
+        ),
+        firmware_file: Optional[UploadFile] = File(
+            default=None,
+            description="Firmware file to upload (if firmware_url is not provided)"
+        )
+    ):
+        """ Create an instance of NodeModifyVersionSchema from form data."""
+        return cls(
+            firmware_version=firmware_version,
+            firmware_url=firmware_url,
+            firmware_file=firmware_file
+        )
+
+    @field_validator("firmware_url")
+    def validate_firmware_url(cls, v):
+        # Handle empty strings from form data
+        if v is not None and v.strip() == "":
+            return None
+            
+        if v is not None:
+            # Basic URL validation using urlparse
+            try:
+                parsed = urlparse(v)
+                
+                # Check if scheme is present and valid
+                if not parsed.scheme or parsed.scheme not in ['http', 'https']:
+                    raise ValueError("URL must start with http:// or https://")
+                
+                # Check if netloc (domain) is present
+                if not parsed.netloc:
+                    raise ValueError("URL must contain a valid domain")
+                
+                # Basic domain validation (should have at least one dot for TLD)
+                if '.' not in parsed.netloc:
+                    raise ValueError("URL must contain a valid domain with TLD (e.g., .com, .org)")
+                
+                # Don't sanitize here to preserve URL encoding like %20, %2F, etc.
+                return v
+                
+            except Exception as e:
+                raise ValueError(f"Invalid URL format: {str(e)}")
+        return v
+
+    @field_validator("firmware_file")
+    def validate_firmware_file(cls, v):
+        # Handle empty file uploads
+        if v and hasattr(v, 'filename') and (v.filename == '' or v.filename is None):
+            return None
+        return v
 
     class Config:
-        """
-        Configuration for the NodeUpdateSchema.
-        This allows for extra fields to be ignored.
-        """
         json_schema_extra = {
             "example": {
-                "firmware_url": "https://example.com/firmware/example.ino.bin",
                 "firmware_version": "1.0.0",
+                "firmware_url": "https://example.com/firmware/example.ino.bin",
             }
         }
 
@@ -105,12 +166,7 @@ class NodeResponse(BaseAPIResponse, BasePagination):
     filter_options: BaseFilterOptions = {}
     data: List[NodeModel] = []
 
-
     class Config:
-        """
-        Configuration for the ResponseLocation schema.
-        This allows for extra fields to be ignored.
-        """
         json_schema_extra = {
             "example": {
                 "message": "List of nodes retrieved successfully",
@@ -150,7 +206,6 @@ class NodeResponse(BaseAPIResponse, BasePagination):
 class SingleNodeResponse(BaseAPIResponse):
     data: Optional[NodeModel] = None
 
-
     class Config:
         json_schema_extra = {
             "example": {
@@ -174,7 +229,6 @@ class SingleNodeResponse(BaseAPIResponse):
 
 class FirmwareVersionListResponse(BaseAPIResponse):
     data: Optional[List[str]] = None
-
 
     class Config:
         json_schema_extra = {

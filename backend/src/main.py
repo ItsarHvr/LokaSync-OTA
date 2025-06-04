@@ -80,14 +80,14 @@ async def _lifespan(_app: FastAPI):
 
 
 ##### Initialize FastAPI application #####
-API_VERSION: str = f"/api/v{env.APP_VERSION}"
+BASE_API_URL: str = f"/api/v{env.API_VERSION}"
 app: FastAPI = FastAPI(
-    title=env.APP_NAME,
-    description=env.APP_DESCRIPTION,
-    version=env.APP_VERSION,
-    docs_url=f"{API_VERSION}/docs",
-    redoc_url=f"{API_VERSION}/redoc",
-    openapi_url=f"{API_VERSION}/openapi.json",
+    title=env.API_NAME,
+    description=env.API_DESCRIPTION,
+    version=env.API_VERSION,
+    docs_url=f"{BASE_API_URL}/docs",
+    redoc_url=f"{BASE_API_URL}/redoc",
+    openapi_url=f"{BASE_API_URL}/openapi.json",
     lifespan=_lifespan
 )
 
@@ -98,7 +98,12 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["Content-Disposition"],
+    expose_headers=[
+        "Content-Disposition",
+        "Content-Type",
+        "Content-Length",
+        "Accept-Ranges"
+    ]
 )
 
 # Register custom exception handlers
@@ -108,8 +113,8 @@ app.add_exception_handler(HTTPException, http_exception_handler)
 ##### Add routes #####
 app.include_router(router_index)
 app.include_router(router_health, tags=["Health Check"])
-app.include_router(router_node, prefix=f"{API_VERSION}/node", tags=["Node Management"])
-app.include_router(router_monitoring, prefix=f"{API_VERSION}/monitoring", tags=["Monitoring Nodes"])
-app.include_router(router_log, prefix=f"{API_VERSION}/log", tags=["OTA Update Logs"])
+app.include_router(router_node, prefix=f"{BASE_API_URL}/node", tags=["Node Management"])
+app.include_router(router_monitoring, prefix=f"{BASE_API_URL}/monitoring", tags=["Monitoring Nodes"])
+app.include_router(router_log, prefix=f"{BASE_API_URL}/log", tags=["OTA Update Logs"])
 
-logger.system_info(f"FastAPI application initialized - Docs: {API_VERSION}/docs")
+logger.system_info(f"FastAPI application initialized - Swagger Docs: {BASE_API_URL}/docs")

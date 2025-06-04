@@ -1,21 +1,39 @@
-from fastapi import Depends, HTTPException
-from typing import Dict, Any, List, Optional
+from io import BytesIO
+from fastapi import Depends, HTTPException, UploadFile, requests
+from typing import Dict, Any, List, Optional, Tuple
+
+from pydantic import ValidationError
 
 from repositories.node import NodeRepository
 from models.node import NodeModel
 from schemas.node import NodeCreateSchema, NodeModifyVersionSchema
 from schemas.common import BaseFilterOptions
 from utils.logger import logger
+from cores.config import env
+from externals.gdrive.download import download_firmware_from_gdrive
 
 
 class NodeService:
     def __init__(self, nodes_repository: NodeRepository = Depends()):
         self.nodes_repository = nodes_repository
+    
+    def _validate_firmware_url_accessibility(self, firmware_url: str) -> bool:
+        """
+        Method helper to validate if the firmware URL is accessible.
+        """
+        try:
+            # Make a HEAD request to check if URL is accessible without downloading
+            response = requests.head(firmware_url, timeout=10, allow_redirects=True)
+            return response.status_code == 200
+        except Exception as e:
+            logger.api_warning(f"Service: URL accessibility check failed: {str(e)}")
+            return False
 
     async def add_new_node(self, data: NodeCreateSchema) -> Optional[NodeModel]:
         logger.api_info(f"Service: Adding new node with data", data.model_dump())
         added = await self.nodes_repository.add_new_node(data)
 
+        # Business Logic: Validate if node already exists
         if not added:
             logger.api_error("Service: Node already exists")
             raise HTTPException(409, "Node already exists.")
@@ -26,36 +44,110 @@ class NodeService:
     async def upsert_firmware(
         self,
         node_codename: str,
-        data: NodeModifyVersionSchema
+        data: NodeModifyVersionSchema,
     ) -> Optional[NodeModel]:
+        """
+        Upsert firmware with comprehensive business logic validation.
+        Handles both file upload and URL scenarios.
+        """
+        # Extract data from schema
         firmware_url = data.firmware_url
         firmware_version = data.firmware_version
+        firmware_file = data.firmware_file
 
         logger.api_info(f"Service: Upserting firmware for node '{node_codename}' - Version: '{firmware_version}'")
 
-        if not firmware_url and not firmware_version:
-            logger.api_error("Service: Firmware URL and version must be provided")
-            raise HTTPException(400, "Firmware URL and version must be provided.")
+        # Business Logic: Validate that either file or URL is provided
+        if not firmware_file and not firmware_url:
+            logger.api_error("Service: Either firmware file or URL must be provided")
+            raise HTTPException(400, "Either firmware file or URL must be provided.") 
+
+        # # Business Logic: Optional URL accessibility check (you can disable this if too strict)
+        if firmware_url and not self._validate_firmware_url_accessibility(firmware_url):
+            logger.api_warning("Service: Firmware URL is not accessible")
+            raise HTTPException(400, "Firmware URL is not accessible. Please check the URL.")
+
+        # Business Logic: Validate file type if file is provided
+        if firmware_file and not firmware_file.filename.endswith('.bin'):
+            logger.api_error("Service: Invalid file type provided")
+            raise HTTPException(400, "Only .bin files are allowed.")
         
+        # Business Logic: Validate firmware file size if file is provided
+        if firmware_file:
+            # Get file size
+            firmware_file.file.seek(0, 2)  # Seek to end
+            file_size = firmware_file.file.tell()
+            firmware_file.file.seek(0)  # Reset to beginning
+            
+            max_size = env.GOOGLE_DRIVE_MAX_FILE_SIZE_MB * 1024 * 1024  # Convert MB to bytes
+            if file_size > max_size:
+                logger.api_error(f"Service: File size ({file_size} bytes) exceeds maximum allowed size ({max_size} bytes)")
+                raise HTTPException(400, f"File size exceeds maximum allowed size of {env.GOOGLE_DRIVE_MAX_FILE_SIZE_MB} MB.")
+            
+            logger.api_info(f"Service: File size validation passed - Size: {file_size} bytes")
+        
+        # Business Logic: Check if node exists
         node_exist = await self.nodes_repository.get_node_by_codename(node_codename)
         if not node_exist:
             logger.api_error(f"Service: Node '{node_codename}' not found")
             raise HTTPException(404, "Node not found.")
 
-        # Upsert the firmware version for the node
+        # Business Logic: Delegate to repository for the actual upsert
         upserted = await self.nodes_repository.upsert_firmware(
             node_codename=node_codename,
+            firmware_version=firmware_version,
             firmware_url=firmware_url,
-            firmware_version=firmware_version
+            firmware_file=firmware_file
         )
 
-        # Check if the node was successfully created or updated
         if not upserted:
             logger.api_error(f"Service: Firmware version '{firmware_version}' already exists for node '{node_codename}'")
             raise HTTPException(409, "Firmware version already exists for this node.")
 
         logger.api_info(f"Service: Firmware upserted successfully for node '{node_codename}'")
         return upserted
+
+    async def get_firmware_download(self, node_codename: str, firmware_version: str = None) -> Tuple[BytesIO, str]:
+        """
+        Get firmware file for download with business logic validation.
+        """
+        logger.api_info(f"Service: Getting firmware download for node '{node_codename}' version '{firmware_version}'")
+        
+        # Business Logic: Check if node exists
+        node_exist = await self.nodes_repository.get_node_by_codename(node_codename)
+        if not node_exist:
+            logger.api_error(f"Service: Node '{node_codename}' not found")
+            raise HTTPException(404, "Node not found.")
+        
+        # Business Logic: Get firmware info
+        firmware_info = await self.nodes_repository.get_firmware_download_info(node_codename, firmware_version)
+        if not firmware_info:
+            logger.api_error(f"Service: Firmware not found for node '{node_codename}' version '{firmware_version}'")
+            raise HTTPException(404, "Firmware not found.")
+        
+        firmware_url = firmware_info['firmware_url']
+        
+        # Business Logic: Handle different URL types
+        if 'drive.google.com' in firmware_url:
+            # Extract file ID from Google Drive URL
+            if 'id=' in firmware_url:
+                file_id = firmware_url.split('id=')[1].split('&')[0]
+            else:
+                logger.api_error(f"Service: Invalid Google Drive URL format")
+                raise HTTPException(400, "Invalid Google Drive URL format.")
+            
+            download_result = download_firmware_from_gdrive(file_id)
+            if not download_result:
+                logger.api_error(f"Service: Failed to download firmware from Google Drive")
+                raise HTTPException(500, "Failed to download firmware from Google Drive.")
+            
+            file_content, filename, _ = download_result
+            logger.api_info(f"Service: Successfully retrieved firmware from Google Drive: {filename}")
+            return file_content, filename
+        else:
+            # Business Logic: Handle other URL types (future enhancement)
+            logger.api_error(f"Service: Direct URL download not implemented yet")
+            raise HTTPException(501, "Direct URL download not implemented yet.")
 
     async def update_description(
         self,
@@ -65,6 +157,7 @@ class NodeService:
     ) -> Optional[NodeModel]:
         logger.api_info(f"Service: Updating description for node '{node_codename}'")
         
+        # Business Logic: Check if node exists
         node_exist = await self.nodes_repository.get_node_by_codename(node_codename)
         if not node_exist:
             logger.api_error(f"Service: Node '{node_codename}' not found")
@@ -89,17 +182,18 @@ class NodeService:
     ) -> None:
         logger.api_info(f"Service: Deleting node '{node_codename}' - Version: '{firmware_version}'")
 
+        # Business Logic: Check if node exists
         node_exist = await self.nodes_repository.get_node_by_codename(node_codename)
         if not node_exist:
             logger.api_error(f"Service: Node '{node_codename}' not found")
             raise HTTPException(404, "Node not found.")
 
-        deleted = await self.nodes_repository.delete_node(node_codename, firmware_version)
-        if not deleted:
+        deleted_count = await self.nodes_repository.delete_node(node_codename, firmware_version)
+        if deleted_count == 0:
             logger.api_error(f"Service: Firmware version not found for node '{node_codename}'")
             raise HTTPException(404, "Firmware version not found.")
         
-        logger.api_info(f"Service: Node '{node_codename}' deleted successfully - {deleted} record(s) removed")
+        logger.api_info(f"Service: Node '{node_codename}' deleted successfully - {deleted_count} record(s) removed")
 
     async def get_all_nodes(
         self,
@@ -119,6 +213,7 @@ class NodeService:
     ) -> Optional[NodeModel]:
         logger.api_info(f"Service: Getting node details - Codename: '{node_codename}', Version: '{firmware_version}'")
 
+        # Business Logic: Check if node exists
         node_exist = await self.nodes_repository.get_node_by_codename(node_codename)
         if not node_exist:
             logger.api_error(f"Service: Node '{node_codename}' not found")
@@ -135,6 +230,7 @@ class NodeService:
     async def get_firmware_versions(self, node_codename: str) -> Optional[List[str]]:
         logger.api_info(f"Service: Getting firmware versions for node '{node_codename}'")
         
+        # Business Logic: Check if node exists
         node_exist = await self.nodes_repository.get_node_by_codename(node_codename)
         if not node_exist:
             logger.api_error(f"Service: Node '{node_codename}' not found")

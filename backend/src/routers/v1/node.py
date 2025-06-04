@@ -1,6 +1,9 @@
 from fastapi import (
     APIRouter,
+    File,
+    Form,
     Response,
+    UploadFile,
     status,
     Depends,
     Query,
@@ -8,6 +11,8 @@ from fastapi import (
     Body
 )
 from typing import Optional, Dict, Any
+
+from fastapi.responses import StreamingResponse
 
 from services.node import NodeService
 from schemas.node import (
@@ -44,17 +49,49 @@ async def add_new_node(
 @router_node.post(path="/add-firmware/{node_codename}", response_model=SingleNodeResponse)
 async def upsert_firmware(
     node_codename: str = Path(..., min_length=3, max_length=255),
-    data: NodeModifyVersionSchema = Body(...),
+    data: NodeModifyVersionSchema = Depends(NodeModifyVersionSchema.as_form),
     service: NodeService = Depends(),
     current_user: dict = Depends(get_current_user)
 ) -> SingleNodeResponse:
-    logger.api_info(f"Adding firmware to node '{node_codename}'", data.model_dump())
+    """
+    Add firmware to a node with file upload or URL.
+    Either firmware_file or firmware_url must be provided.
+    """
+    logger.api_info(f"Adding firmware to node '{node_codename}' - Version: '{data.firmware_version}'")
+    
     node = await service.upsert_firmware(node_codename, data)
+    
     logger.api_info(f"Firmware version '{data.firmware_version}' added to node '{node_codename}'")
     return SingleNodeResponse(
-        message="Firmware version added",
+        message="Firmware version added successfully",
         status_code=status.HTTP_200_OK,
         data=node
+    )
+
+@router_node.get(path="/download-firmware/{node_codename}")
+async def download_firmware(
+    node_codename: str = Path(..., min_length=3, max_length=255),
+    firmware_version: Optional[str] = Query(default=None, min_length=3, max_length=10),
+    service: NodeService = Depends(),
+    current_user: dict = Depends(get_current_user)
+) -> StreamingResponse:
+    """
+    Download firmware file for a specific node.
+    If firmware_version is not provided, returns the latest version.
+    """
+    logger.api_info(f"Downloading firmware for node '{node_codename}' version '{firmware_version}'")
+    
+    file_content, filename = await service.get_firmware_download(node_codename, firmware_version)
+    
+    logger.api_info(f"Successfully prepared firmware download: {filename}")
+    
+    return StreamingResponse(
+        file_content,
+        media_type='application/octet-stream',
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}",
+            "Content-Type": "application/octet-stream"
+        }
     )
 
 @router_node.patch(path="/edit-firmware/{node_codename}", response_model=SingleNodeResponse)

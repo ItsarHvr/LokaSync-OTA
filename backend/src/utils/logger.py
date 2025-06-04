@@ -45,6 +45,7 @@ class Logger:
         self.database_logger = self._create_logger("database", "database.log")
         self.mqtt_logger = self._create_logger("mqtt", "mqtt.log")
         self.system_logger = self._create_logger("system", "system.log")
+        self.gdrive_logger = self._create_logger("gdrive", "gdrive.log")
     
     def _create_logger(self, name: str, filename: str) -> logging.Logger:
         """Create a logger with both file and console handlers"""
@@ -160,6 +161,29 @@ class Logger:
     def system_warning(self, message: str):
         """Log system warnings"""
         self.system_logger.warning(f"⚠️ {message}")
+    
+    # Google Drive Logger Methods
+    def gdrive_info(self, message: str, data: Optional[Dict] = None):
+        """Log Google Drive information"""
+        if data:
+            message += f"\n{self._format_json_data(data)}"
+        self.gdrive_logger.info(f"☁️ {message}")
+    
+    def gdrive_error(self, message: str, error: Optional[Exception] = None):
+        """Log Google Drive errors"""
+        if error:
+            message += f" | Error: {str(error)}"
+        self.gdrive_logger.error(f"❌ {message}")
+    
+    def gdrive_warning(self, message: str):
+        """Log Google Drive warnings"""
+        self.gdrive_logger.warning(f"⚠️ {message}")
+    
+    def gdrive_debug(self, message: str, data: Optional[Dict] = None):
+        """Log Google Drive debug information"""
+        if data:
+            message += f"\n{self._format_json_data(data)}"
+        self.gdrive_logger.debug(f"🔍 {message}")
 
 # Create global logger instance
 logger = Logger()
