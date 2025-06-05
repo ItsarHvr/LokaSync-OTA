@@ -76,6 +76,7 @@ class NodeModifyVersionSchema(BaseModel):
 
     firmware_version: str = Field(
         ...,
+        min_length=5,
         max_length=20,
         description="Firmware version in x.y.z format (e.g., 1.0.0)"
     )
@@ -93,6 +94,7 @@ class NodeModifyVersionSchema(BaseModel):
         cls,
         firmware_version: str = Form(
             ..., 
+            min_length=5,
             max_length=20,
             description="Firmware version in x.y.z format (e.g., 1.0.0)"
         ),
@@ -221,9 +223,9 @@ class FirmwareVersionListResponse(BaseAPIResponse):
                 "message": "List of firmware versions retrieved successfully",
                 "status_code": 200,
                 "data": [
-                    "1.0",
-                    "1.1",
-                    "2.0"
+                    "1.0.0",
+                    "1.1.0",
+                    "2.0.0"
                 ]
             }
         }
