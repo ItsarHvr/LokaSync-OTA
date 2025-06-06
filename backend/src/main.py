@@ -17,6 +17,8 @@ from routers.v1.log import router_log
 
 from externals.firebase.client import init_firebase_app
 from externals.mqtts.run import start_mqtt_service, stop_mqtt_service
+from externals.gdrive.client import check_gdrive_credentials
+from externals.gdrive.client import SERVICE_ACCOUNT_FILE
 
 ##### Define lifespan event handler #####
 @asynccontextmanager
@@ -54,6 +56,14 @@ async def _lifespan(_app: FastAPI):
     # Task 3: Initialize Firebase Admin SDK
     logger.system_info("[TASK 3]: Initializing Firebase...")
     init_firebase_app()
+
+    # Task 4: Checking Google Drive credential file
+    logger.system_info("[TASK 4]: Checking Google Drive credentials...")
+    is_gdrive_creds_valid = check_gdrive_credentials(SERVICE_ACCOUNT_FILE)
+    if is_gdrive_creds_valid:
+        logger.gdrive_info("Google Drive credentials file is valid")
+    else:
+        logger.gdrive_error("Google Drive credentials file is invalid or not found")
     
     logger.system_info("LokaSync OTA Backend: Lifespan startup sequence finished")
 

@@ -53,7 +53,7 @@ def create_csv_from_logs(logs: List[LogModel]) -> BinaryIO:
         "node_type": "Node Type",
         "node_id": "Node ID",
         "node_codename": "Node Codename",
-        "firmware_version": "Firmware Version",
+        "firmware_version": "Previous Version",
         "download_started_at": "Download Started At",
         "firmware_size_kb": "Firmware Size (KB)",
         "bytes_written": "Bytes Written",
@@ -145,7 +145,7 @@ def create_pdf_from_logs(logs: List[LogModel]) -> BinaryIO:
     
     pdf.cell(col_widths["session_id"], 8, "Session ID", 1, 0, 'C', 1)
     pdf.cell(col_widths["node_codename"], 8, "Node Codename", 1, 0, 'C', 1)
-    pdf.cell(col_widths["firmware_version"], 8, "Firmware Version", 1, 0, 'C', 1)
+    pdf.cell(col_widths["firmware_version"], 8, "Previous Version", 1, 0, 'C', 1)
     pdf.cell(col_widths["created_at"], 8, "Created At", 1, 0, 'C', 1)
     pdf.cell(col_widths["flash_status"], 8, "Status", 1, 1, 'C', 1)
     
@@ -186,7 +186,7 @@ def create_pdf_from_logs(logs: List[LogModel]) -> BinaryIO:
             "node_type": "Node Type",
             "node_id": "Node ID",
             "node_codename": "Node Codename",
-            "firmware_version": "Firmware Version",
+            "firmware_version": "Previous Version",
             "download_started_at": "Download Started At",
             "firmware_size_kb": "Firmware Size (KB)",
             "bytes_written": "Bytes Written",

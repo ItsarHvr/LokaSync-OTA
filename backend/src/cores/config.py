@@ -28,7 +28,7 @@ class Environment(BaseSettings):
     MQTT_BROKER_PORT: int = int(getenv("MQTT_BROKER_PORT", 1883))
     MQTT_BROKER_USERNAME: str = getenv("MQTT_BROKER_USERNAME", None)
     MQTT_BROKER_PASSWORD: str = getenv("MQTT_BROKER_PASSWORD", None)
-    MQTT_BROKER_CA_CERT_NAME: str = getenv("MQTT_BROKER_CA_CERT_NAME", "emqxsl-ca.crt")
+    MQTT_BROKER_CA_CERT_NAME: str = getenv("MQTT_BROKER_CA_CERT_NAME", "emqxsl-ca-example.crt")
     MQTT_BROKER_TLS_ENABLED: bool = getenv("MQTT_BROKER_TLS_ENABLED", "false").lower() in ("true", "1", "Yes")
     MQTT_SUBSCRIBE_TOPIC_LOG: str = getenv("MQTT_SUBSCRIBE_TOPIC_LOG", None)
     MQTT_PUBLISH_TOPIC_LOG: str = getenv("MQTT_PUBLISH_TOPIC_LOG", None)
