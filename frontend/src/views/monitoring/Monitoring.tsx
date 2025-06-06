@@ -1,561 +1,913 @@
-import { useState, useEffect } from "react";
-import Layout from "../../components/layout/Layout";
-import Card from "../../components/ui/Card";
-import Alert from "../../components/ui/Alert";
-import { mqttController } from "../../controllers/MQTTController";
-import type { MonitoringData } from "../../types";
-import Chart from "chart.js/auto";
+import { useState, useEffect, useCallback } from "react";
+import Header from "@/components/layout/Header";
+import Footer from "@/components/layout/Footer";
+import Main from "@/components/layout/Main";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
+import {
+  Thermometer,
+  Droplets,
+  Wifi,
+  WifiOff,
+  RefreshCw,
+  Beaker,
+  Zap,
+  Info,
+} from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
+import { usePageTitle } from "@/hooks/usePageTitle";
+import { useMQTTConnection } from "@/hooks/useMQTTConnection";
+import { mqttManager, type MonitoringMQTTMessage } from "@/utils/mqttClient";
+import { ScrollToTop } from "@/components/ui/scroll-to-top";
+import Squares from "@/components/background/Squares";
+import {
+  parseNodeCodename,
+  getNodeDisplayName,
+  type ParsedNodeCodename,
+} from "@/utils/nodeCodenameParser";
 
-const Monitoring = () => {
-  // State for monitoring data
-  const [monitoringData, setMonitoringData] = useState<MonitoringData[]>([]);
-  const [isConnected, setIsConnected] = useState(false);
-  const [error, setError] = useState("");
-  const [selectedNode, setSelectedNode] = useState<string | null>(null);
-  const [availableNodes, setAvailableNodes] = useState<
-    { id: number; name: string }[]
-  >([]);
-  const [temperatureChart, setTemperatureChart] = useState<Chart<
-    "line",
-    number[],
-    string
-  > | null>(null);
-  const [humidityChart, setHumidityChart] = useState<Chart<
-    "line",
-    number[],
-    string
-  > | null>(null);
-  const [tdsChart, setTdsChart] = useState<Chart<
-    "line",
-    number[],
-    string
-  > | null>(null);
+// Extended sensor data interface to support different sensor types
+interface SensorData {
+  timestamp: string;
+  time: string; // For display
+  // Node 1: Temperature & Humidity
+  temperature?: number;
+  humidity?: number;
+  // Node 2: TDS (Total Dissolved Solids)
+  tds?: number;
+  // Node 3: DS (Dissolved Solids/EC - Electrical Conductivity)
+  ds?: number;
+}
 
-  // Connect to MQTT broker on component mount
-  useEffect(() => {
-    const connectToMQTT = async () => {
-      try {
-        setError("");
-        // Connect to MQTT broker using environment variables
-        await mqttController.connect();
-        setIsConnected(true);
+interface NodeData {
+  codename: string;
+  parsedInfo: ParsedNodeCodename;
+  lastUpdate: string | null;
+  isReceivingData: boolean;
+  sensorHistory: SensorData[];
+  currentValues: {
+    temperature?: number;
+    humidity?: number;
+    tds?: number;
+    ds?: number;
+  };
+}
 
-        // Subscribe to messages
-        mqttController.onMessage((data) => {
-          // Add timestamp if not present
-          const dataWithTimestamp: MonitoringData = {
-            ...data,
-            timestamp: data.timestamp || new Date().toISOString(),
-          };
+// Type for sensor data from MQTT messages that might contain ds or ec
+interface SensorMQTTMessage extends MonitoringMQTTMessage {
+  ds?: number;
+  ec?: number;
+  tds?: number;
+}
 
-          setMonitoringData((prev) => {
-            // Keep only the latest 100 data points to avoid memory issues
-            const newData = [dataWithTimestamp, ...prev].slice(0, 100);
+export default function Monitoring() {
+  const [connectedNodes, setConnectedNodes] = useState<Map<string, NodeData>>(
+    new Map(),
+  );
+  const [selectedNodeCodename, setSelectedNodeCodename] = useState<string>("");
 
-            // Update available nodes
-            const nodesSet = new Set(newData.map((d) => d.nodeName));
-            const nodesArray = Array.from(nodesSet).map((name) => {
-              const node = newData.find((d) => d.nodeName === name);
-              return {
-                id: node?.nodeId || 0,
-                name,
-              };
-            });
+  const isMQTTConnected = useMQTTConnection();
+  usePageTitle("Monitoring");
 
-            setAvailableNodes(nodesArray);
+  // Handle real-time monitoring messages from MQTT
+  const handleMonitoringMessage = useCallback(
+    (message: MonitoringMQTTMessage) => {
+      console.log("Received monitoring message:", message);
 
-            // Auto-select the first node if none is selected
-            if (!selectedNode && nodesArray.length > 0) {
-              setSelectedNode(nodesArray[0].name);
-            }
-
-            return newData;
-          });
-        });
-      } catch (err) {
-        let errorMessage = "Failed to connect to MQTT broker";
-        if (err instanceof Error) {
-          errorMessage = err.message;
-        }
-        setError(errorMessage);
-        setIsConnected(false);
-
-        // Create dummy data for testing
-        const generateDummyData = () => {
-          const nodes = ["depok-node1-DHT11", "jakarta-node2-TDS"];
-          const nodeId =
-            nodes.indexOf(nodes[Math.floor(Math.random() * nodes.length)]) + 1;
-          const nodeName = nodes[nodeId - 1];
-
-          const now = new Date();
-          const timestamp = now.toISOString();
-
-          // Generate random data based on node type
-          if (nodeName.includes("DHT11")) {
-            return {
-              nodeId,
-              nodeName,
-              temperature: 25 + Math.random() * 5,
-              humidity: 60 + Math.random() * 20,
-              timestamp,
-            };
-          } else {
-            return {
-              nodeId,
-              nodeName,
-              tds: 100 + Math.random() * 50,
-              timestamp,
-            };
-          }
-        };
-
-        // Generate initial dummy data
-        const initialData: MonitoringData[] = Array.from({ length: 20 }, () =>
-          generateDummyData(),
-        );
-        setMonitoringData(initialData);
-
-        // Set available nodes
-        const nodesSet = new Set(initialData.map((d) => d.nodeName));
-        const nodesArray = Array.from(nodesSet).map((name) => {
-          const node = initialData.find((d) => d.nodeName === name);
-          return {
-            id: node?.nodeId || 0,
-            name,
-          };
-        });
-
-        setAvailableNodes(nodesArray);
-        setSelectedNode(nodesArray[0]?.name || null);
-
-        // Simulate receiving data every 3 seconds
-        const interval = setInterval(() => {
-          const newData = generateDummyData();
-          setMonitoringData((prev) => [newData, ...prev].slice(0, 100));
-        }, 3000);
-
-        return () => clearInterval(interval);
-      }
-    };
-
-    connectToMQTT();
-
-    // Cleanup on component unmount
-    return () => {
-      if (isConnected) {
-        mqttController.disconnect();
+      if (!message.node_codename) {
+        console.error("Missing node_codename in message:", message);
+        return;
       }
 
-      // Destroy charts
-      if (temperatureChart) temperatureChart.destroy();
-      if (humidityChart) humidityChart.destroy();
-      if (tdsChart) tdsChart.destroy();
-    };
-  }, [isConnected, temperatureChart, humidityChart, tdsChart, selectedNode]);
+      const parsedNode = parseNodeCodename(message.node_codename);
+      if (!parsedNode) {
+        console.error("Unable to parse node codename:", message.node_codename);
+        return;
+      }
 
-  // Initialize and update charts when data or selected node changes
-  useEffect(() => {
-    // Helper to get data for the selected node
-    const getNodeData = () => {
-      if (!selectedNode) return [];
-      return monitoringData
-        .filter((data) => data.nodeName === selectedNode)
-        .sort(
-          (a, b) =>
-            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
-        );
-    };
+      // Extract sensor data based on message format
+      const sensorData: Partial<SensorData> = {};
 
-    const nodeData = getNodeData();
-    if (nodeData.length === 0) return;
+      // Handle different message formats
+      if ("temperature" in message && "humidity" in message) {
+        // Node 1: Temperature & Humidity
+        sensorData.temperature = message.temperature as number;
+        sensorData.humidity = message.humidity as number;
+      } else if ("tds" in message) {
+        // Node 2: TDS sensor
+        sensorData.tds = message.tds as number;
+      } else if ("ds" in message || "ec" in message) {
+        // Node 3: DS/EC sensor
+        const sensorMessage = message as SensorMQTTMessage;
+        sensorData.ds = (sensorMessage.ds || sensorMessage.ec) as number;
+      } else if (
+        message.sensor_data &&
+        typeof message.sensor_data === "object" &&
+        message.sensor_data !== null
+      ) {
+        // Nested format
+        const data = message.sensor_data as Record<string, unknown>;
 
-    // Format timestamps for x-axis labels
-    const formatTimestamp = (timestamp: string) => {
-      const date = new Date(timestamp);
-      return `${date.getHours()}:${date.getMinutes().toString().padStart(2, "0")}:${date.getSeconds().toString().padStart(2, "0")}`;
-    };
+        if (typeof data.temperature === "number")
+          sensorData.temperature = data.temperature;
+        if (typeof data.humidity === "number")
+          sensorData.humidity = data.humidity;
+        if (typeof data.tds === "number") sensorData.tds = data.tds;
+        if (typeof data.ds === "number") sensorData.ds = data.ds;
+        if (typeof data.ec === "number") sensorData.ds = data.ec; // EC and DS are related
+      } else {
+        console.error("Unknown sensor data format:", message);
+        return;
+      }
 
-    const timestamps = nodeData.map((data) => formatTimestamp(data.timestamp));
-
-    // Check what type of data we have
-    const hasDHTData =
-      "temperature" in nodeData[0] && "humidity" in nodeData[0];
-    const hasTDSData = "tds" in nodeData[0];
-    // Temperature chart
-    if (hasDHTData) {
-      const temperatureData: number[] = nodeData.map((data) => {
-        const typedData = data as MonitoringData & { temperature?: number };
-        return typedData.temperature ?? 0; // Use 0 as fallback to ensure number type
+      const timestamp = new Date().toISOString();
+      const timeDisplay = new Date().toLocaleTimeString("en-US", {
+        hour12: false,
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
       });
-      const humidityData: number[] = nodeData.map((data) => {
-        const typedData = data as MonitoringData & { humidity?: number };
-        return typedData.humidity ?? 0; // Use 0 as fallback to ensure number type
-      });
 
-      // Temperature chart
-      const temperatureCanvas = document.getElementById(
-        "temperature-chart",
-      ) as HTMLCanvasElement;
-      if (temperatureCanvas) {
-        // Destroy previous chart if it exists
-        if (temperatureChart) temperatureChart.destroy();
+      const newSensorData: SensorData = {
+        timestamp,
+        time: timeDisplay,
+        ...sensorData,
+      };
 
-        const newTempChart = new Chart(temperatureCanvas, {
-          type: "line",
-          data: {
-            labels: timestamps,
-            datasets: [
-              {
-                label: "Temperature (°C)",
-                data: temperatureData,
-                borderColor: "#ff6b6b",
-                backgroundColor: "rgba(255, 107, 107, 0.1)",
-                borderWidth: 2,
-                tension: 0.4,
-                fill: true,
-              },
-            ],
-          },
-          options: {
-            responsive: true,
-            plugins: {
-              title: {
-                display: true,
-                text: "Temperature Over Time",
-                font: {
-                  size: 16,
-                },
-              },
-              legend: {
-                position: "top",
-              },
-            },
-            scales: {
-              y: {
-                beginAtZero: false,
-                title: {
-                  display: true,
-                  text: "Temperature (°C)",
-                },
-              },
-              x: {
-                title: {
-                  display: true,
-                  text: "Time",
-                },
-              },
-            },
-          },
-        });
+      // Update nodes data
+      setConnectedNodes((prevNodes) => {
+        const updatedNodes = new Map(prevNodes);
+        const nodeCodename = message.node_codename;
 
-        setTemperatureChart(newTempChart);
+        const existingNode = updatedNodes.get(nodeCodename);
 
-        // Humidity chart
-        const humidityCanvas = document.getElementById(
-          "humidity-chart",
-        ) as HTMLCanvasElement;
-        if (humidityCanvas) {
-          // Destroy previous chart if it exists
-          if (humidityChart) humidityChart.destroy();
+        if (existingNode) {
+          // Update existing node
+          const updatedHistory = [
+            ...existingNode.sensorHistory,
+            newSensorData,
+          ].slice(-50);
 
-          const newHumidityChart = new Chart(humidityCanvas, {
-            type: "line",
-            data: {
-              labels: timestamps,
-              datasets: [
-                {
-                  label: "Humidity (%)",
-                  data: humidityData,
-                  borderColor: "#4dabf7",
-                  backgroundColor: "rgba(77, 171, 247, 0.1)",
-                  borderWidth: 2,
-                  tension: 0.4,
-                  fill: true,
-                },
-              ],
-            },
-            options: {
-              responsive: true,
-              plugins: {
-                title: {
-                  display: true,
-                  text: "Humidity Over Time",
-                  font: {
-                    size: 16,
-                  },
-                },
-                legend: {
-                  position: "top",
-                },
-              },
-              scales: {
-                y: {
-                  beginAtZero: false,
-                  title: {
-                    display: true,
-                    text: "Humidity (%)",
-                  },
-                },
-                x: {
-                  title: {
-                    display: true,
-                    text: "Time",
-                  },
-                },
-              },
+          updatedNodes.set(nodeCodename, {
+            ...existingNode,
+            lastUpdate: timestamp,
+            isReceivingData: true,
+            sensorHistory: updatedHistory,
+            currentValues: {
+              ...existingNode.currentValues,
+              ...sensorData,
             },
           });
-
-          setHumidityChart(newHumidityChart);
+        } else {
+          // Add new node
+          updatedNodes.set(nodeCodename, {
+            codename: nodeCodename,
+            parsedInfo: parsedNode,
+            lastUpdate: timestamp,
+            isReceivingData: true,
+            sensorHistory: [newSensorData],
+            currentValues: sensorData,
+          });
         }
-      }
-    }
-    // TDS chart
-    if (hasTDSData) {
-      const tdsData: number[] = nodeData.map((data) => {
-        const typedData = data as MonitoringData & { tds?: number };
-        return typedData.tds ?? 0; // Use 0 as fallback to ensure number type
+
+        // Auto-select the first node if none selected
+        if (!selectedNodeCodename && updatedNodes.size > 0) {
+          setSelectedNodeCodename(nodeCodename);
+        }
+
+        return updatedNodes;
       });
+    },
+    [selectedNodeCodename],
+  );
 
-      const tdsCanvas = document.getElementById(
-        "tds-chart",
-      ) as HTMLCanvasElement;
-      if (tdsCanvas) {
-        // Destroy previous chart if it exists
-        if (tdsChart) tdsChart.destroy();
+  // Subscribe to MQTT monitoring messages
+  useEffect(() => {
+    const unsubscribe = mqttManager.onMonitoringMessage(
+      handleMonitoringMessage,
+    );
+    return unsubscribe;
+  }, [handleMonitoringMessage]);
 
-        const newTDSChart = new Chart(tdsCanvas, {
-          type: "line",
-          data: {
-            labels: timestamps,
-            datasets: [
-              {
-                label: "TDS (ppm)",
-                data: tdsData,
-                borderColor: "#20c997",
-                backgroundColor: "rgba(32, 201, 151, 0.1)",
-                borderWidth: 2,
-                tension: 0.4,
-                fill: true,
-              },
-            ],
-          },
-          options: {
-            responsive: true,
-            plugins: {
-              title: {
-                display: true,
-                text: "TDS Over Time",
-                font: {
-                  size: 16,
-                },
-              },
-              legend: {
-                position: "top",
-              },
-            },
-            scales: {
-              y: {
-                beginAtZero: false,
-                title: {
-                  display: true,
-                  text: "TDS (ppm)",
-                },
-              },
-              x: {
-                title: {
-                  display: true,
-                  text: "Time",
-                },
-              },
-            },
-          },
-        });
+  // Get all nodes as array
+  const allNodes = Array.from(connectedNodes.values());
 
-        setTdsChart(newTDSChart);
-      }
+  // Get selected node data
+  const selectedNode = selectedNodeCodename
+    ? connectedNodes.get(selectedNodeCodename) || null
+    : null;
+
+  // Generate chart data for selected node
+  const getChartData = () => {
+    if (!selectedNode || selectedNode.sensorHistory.length === 0) {
+      // Generate placeholder data
+      const placeholderData: SensorData[] = Array.from(
+        { length: 10 },
+        (_, i) => ({
+          time: `${String(new Date().getHours()).padStart(2, "0")}:${String(new Date().getMinutes() - 9 + i).padStart(2, "0")}`,
+          timestamp: new Date(Date.now() - (9 - i) * 60000).toISOString(),
+          temperature: 25,
+          humidity: 50,
+        }),
+      );
+      return placeholderData;
     }
-  }, [monitoringData, selectedNode, humidityChart, tdsChart, temperatureChart]);
 
-  // Get data for the selected node
-  const getNodeData = () => {
-    if (!selectedNode) return [];
-    return monitoringData
-      .filter((data) => data.nodeName === selectedNode)
+    // Return last 50 points from selected node
+    return selectedNode.sensorHistory
       .sort(
         (a, b) =>
-          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-      );
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+      )
+      .slice(-50);
   };
 
-  // Determines which charts to show based on sensor type
-  const renderCharts = () => {
-    const nodeData = getNodeData();
-    if (nodeData.length === 0)
-      return (
-        <p className="text-center text-gray-500">
-          No data available for selected node
-        </p>
-      );
-
-    const firstData = nodeData[0];
-    const hasDHTData = "temperature" in firstData && "humidity" in firstData;
-    const hasTDSData = "tds" in firstData;
-
-    return (
-      <div className="space-y-8">
-        {hasDHTData && (
-          <>
-            <div className="lokasync-card">
-              <canvas id="temperature-chart"></canvas>
-            </div>
-            <div className="lokasync-card">
-              <canvas id="humidity-chart"></canvas>
-            </div>
-          </>
-        )}
-
-        {hasTDSData && (
-          <div className="lokasync-card">
-            <canvas id="tds-chart"></canvas>
-          </div>
-        )}
-      </div>
-    );
+  const chartConfig = {
+    temperature: {
+      label: "Temperature (°C)",
+      color: "hsl(142, 72%, 29%)", // Green
+    },
+    humidity: {
+      label: "Humidity (%)",
+      color: "hsl(32, 98%, 50%)", // Orange
+    },
+    tds: {
+      label: "TDS (ppm)",
+      color: "hsl(217, 91%, 60%)", // Blue
+    },
+    ds: {
+      label: "DS/EC (μS/cm)",
+      color: "hsl(262, 83%, 58%)", // Purple
+    },
   };
 
-  // Render the most recent readings in a card
-  const renderLatestReadings = () => {
-    const nodeData = getNodeData();
-    if (nodeData.length === 0) return null;
-
-    const latestData = nodeData[0];
-    const timestamp = new Date(latestData.timestamp).toLocaleString();
-
-    return (
-      <Card className="mb-6">
-        <h2 className="text-xl font-semibold text-lokasync-accent mb-4">
-          Latest Readings
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {"temperature" in latestData && (
-            <div className="bg-lokasync-light-green p-4 rounded-md text-center">
-              <p className="text-gray-600 mb-1">Temperature</p>{" "}
-              <p className="text-3xl font-bold text-lokasync-accent">
-                {(
-                  latestData as MonitoringData & { temperature: number }
-                ).temperature.toFixed(1)}
-                °C
-              </p>
-            </div>
-          )}
-
-          {"humidity" in latestData && (
-            <div className="bg-lokasync-light-green p-4 rounded-md text-center">
-              <p className="text-gray-600 mb-1">Humidity</p>{" "}
-              <p className="text-3xl font-bold text-lokasync-accent">
-                {(
-                  latestData as MonitoringData & { humidity: number }
-                ).humidity.toFixed(1)}
-                %
-              </p>
-            </div>
-          )}
-
-          {"tds" in latestData && (
-            <div className="bg-lokasync-light-green p-4 rounded-md text-center">
-              <p className="text-gray-600 mb-1">TDS</p>{" "}
-              <p className="text-3xl font-bold text-lokasync-accent">
-                {(latestData as MonitoringData & { tds: number }).tds.toFixed(
-                  1,
-                )}{" "}
-                ppm
-              </p>
-            </div>
-          )}
-        </div>
-        <p className="text-sm text-gray-500 mt-4">Last updated: {timestamp}</p>
-      </Card>
-    );
+  const clearHistory = () => {
+    if (selectedNode) {
+      setConnectedNodes((prevNodes) => {
+        const updatedNodes = new Map(prevNodes);
+        updatedNodes.set(selectedNode.codename, {
+          ...selectedNode,
+          sensorHistory: [],
+          currentValues: {},
+          isReceivingData: false,
+          lastUpdate: null,
+        });
+        return updatedNodes;
+      });
+    }
   };
+
+  const formatLastUpdate = (timestamp: string | null) => {
+    if (!timestamp) return "No data received";
+    return new Date(timestamp).toLocaleString("en-US", {
+      hour12: false,
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  };
+
+  // Get sensor types from selected node
+  const getSensorTypesFromNode = (node: NodeData | null) => {
+    if (!node) return [];
+    const sensorTypes = new Set<string>();
+    Object.keys(node.currentValues).forEach((key) => {
+      if (
+        node.currentValues[key as keyof typeof node.currentValues] !== undefined
+      ) {
+        sensorTypes.add(key);
+      }
+    });
+    return Array.from(sensorTypes);
+  };
+
+  const availableSensorTypes = getSensorTypesFromNode(selectedNode);
+
+  // Format node location for display (capitalize properly)
+  const formatNodeLocation = (location: string) => {
+    return location
+      .split("-")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join("-");
+  };
+
+  // Format node type for display
+  const formatNodeType = (type: string) => {
+    return type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
+  };
+
+  // Add a timeout mechanism to detect when data stops coming
+  useEffect(() => {
+    const timeoutIds = new Map<string, NodeJS.Timeout>();
+
+    connectedNodes.forEach((node, codename) => {
+      if (node.isReceivingData) {
+        // Clear existing timeout
+        const existingTimeoutId = timeoutIds.get(codename);
+        if (existingTimeoutId) {
+          clearTimeout(existingTimeoutId);
+        }
+
+        // Set new timeout for 30 seconds
+        const timeoutId = setTimeout(() => {
+          setConnectedNodes((prevNodes) => {
+            const updatedNodes = new Map(prevNodes);
+            const currentNode = updatedNodes.get(codename);
+            if (currentNode) {
+              updatedNodes.set(codename, {
+                ...currentNode,
+                isReceivingData: false,
+              });
+            }
+            return updatedNodes;
+          });
+        }, 10000); // 10 seconds timeout
+
+        timeoutIds.set(codename, timeoutId);
+      }
+    });
+
+    // Cleanup function to clear timeouts on unmount
+    return () => {
+      timeoutIds.forEach((timeoutId) => clearTimeout(timeoutId));
+    };
+  }, [connectedNodes]);
 
   return (
-    <Layout title="Monitoring">
-      <div className="mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-center">
-        <h1 className="text-3xl font-bold text-lokasync-accent mb-2 sm:mb-0">
-          Real-time Monitoring
-        </h1>
-
-        {/* Node selector */}
-        <div className="w-full sm:w-64">
-          <select
-            value={selectedNode || ""}
-            onChange={(e) => setSelectedNode(e.target.value)}
-            className="lokasync-input"
-            disabled={availableNodes.length === 0}
-          >
-            <option value="" disabled>
-              Select Node
-            </option>
-            {availableNodes.map((node) => (
-              <option key={node.name} value={node.name}>
-                {node.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {error && (
-        <Alert type="error" message={error} onClose={() => setError("")} />
-      )}
-
-      {!isConnected && !error && (
-        <Alert
-          type="info"
-          message="Using simulated data. MQTT connection unavailable."
-          onClose={() => {}}
-          className="text-center"
+    <div className="min-h-screen flex flex-col bg-background relative">
+      {/* Squares Background Animation */}
+      <div className="absolute inset-0 z-0">
+        <Squares
+          speed={0.2}
+          squareSize={12}
+          direction="diagonal"
+          borderColor="#24371f"
+          hoverFillColor="#284e13"
         />
-      )}
-
-      {/* Connection status */}
-      <div className="mb-6 flex items-center justify-center">
-        <span
-          className={`inline-block w-3 h-3 rounded-full mr-2 ${
-            isConnected ? "bg-green-500" : "bg-red-500"
-          }`}
-        ></span>
-        <span
-          className={`text-sm ${isConnected ? "text-gray-600" : "text-red-600 font-medium"}`}
-        >
-          {isConnected
-            ? "Connected to MQTT broker"
-            : "Not connected to MQTT broker"}
-        </span>
       </div>
 
-      {selectedNode ? (
-        <>
-          {/* Latest readings */}
-          {renderLatestReadings()}
+      {/* Content Layer */}
+      <div className="relative z-10 flex flex-col min-h-screen">
+        <Header />
+        <Main>
+          <div className="space-y-6">
+            {/* Header Section */}
+            <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold">
+                  Real-time Monitoring
+                </h1>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Monitor IoT sensor data from multiple nodes in real-time via
+                  MQTT
+                </p>
+              </div>
 
-          {/* Charts */}
-          {renderCharts()}
-        </>
-      ) : (
-        <Card>
-          <div className="text-center py-8">
-            <p className="text-gray-500">
-              {availableNodes.length === 0
-                ? "Waiting for monitoring data..."
-                : "Please select a node to view monitoring data"}
-            </p>
+              <div className="flex items-center gap-4">
+                {/* MQTT Connection Status */}
+                <div className="flex items-center gap-2">
+                  {isMQTTConnected ? (
+                    <>
+                      <Wifi className="h-4 w-4 text-green-500" />
+                      <span className="text-sm text-green-500">
+                        MQTT Connected
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <WifiOff className="h-4 w-4 text-red-500" />
+                      <span className="text-sm text-red-500">
+                        MQTT Disconnected
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                {/* Clear History Button */}
+                <Button
+                  onClick={clearHistory}
+                  // variant="outline"
+                  size="sm"
+                  disabled={!selectedNode}
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Clear History
+                </Button>
+              </div>
+            </div>
+
+            {/* Node Selection and Parsed Information */}
+            <Card className="backdrop-blur-sm bg-card/95 border-border/50 shadow-lg">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Info className="h-5 w-5" />
+                  Node Information
+                </CardTitle>
+                <CardDescription>
+                  Select a node to view its parsed information and sensor data
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-center">
+                  {/* Node Selection */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Select Node</label>
+                    <Select
+                      value={selectedNodeCodename}
+                      onValueChange={setSelectedNodeCodename}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Choose a node..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allNodes.map((node) => (
+                          <SelectItem key={node.codename} value={node.codename}>
+                            <div className="flex flex-col text-left w-full">
+                              <span className="font-mono text-sm">
+                                {node.codename}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {getNodeDisplayName(node.parsedInfo)}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Parsed Node Location */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Node Location</label>
+                    <Select
+                      value={selectedNode?.parsedInfo.node_location || ""}
+                      disabled
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="No node selected" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {selectedNode && (
+                          <SelectItem
+                            value={selectedNode.parsedInfo.node_location}
+                          >
+                            {formatNodeLocation(
+                              selectedNode.parsedInfo.node_location,
+                            )}
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Parsed Node Type */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Node Type</label>
+                    <Select
+                      value={selectedNode?.parsedInfo.node_type || ""}
+                      disabled
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="No node selected" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {selectedNode && (
+                          <SelectItem value={selectedNode.parsedInfo.node_type}>
+                            {formatNodeType(selectedNode.parsedInfo.node_type)}
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Parsed Node ID */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Node ID</label>
+                    <Select
+                      value={selectedNode?.parsedInfo.node_id || ""}
+                      disabled
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="No node selected" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {selectedNode && (
+                          <SelectItem value={selectedNode.parsedInfo.node_id}>
+                            {selectedNode.parsedInfo.node_id.toUpperCase()}
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Node Information Summary */}
+                <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                  <span>
+                    {connectedNodes.size === 0
+                      ? "No nodes detected yet"
+                      : `${connectedNodes.size} total node${connectedNodes.size > 1 ? "s" : ""} available`}
+                  </span>
+                  {selectedNode && (
+                    <>
+                      <span>•</span>
+                      <span>
+                        Status:{" "}
+                        {selectedNode.isReceivingData ? "Live" : "No Data"}
+                      </span>
+                      {availableSensorTypes.length > 0 && (
+                        <>
+                          <span>•</span>
+                          <span>
+                            Sensors: {availableSensorTypes.join(", ")}
+                          </span>
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {selectedNode ? (
+              <>
+                {/* Current Values Card */}
+                <Card className="backdrop-blur-sm bg-card/95 border-border/50 shadow-lg">
+                  <CardHeader>
+                    <CardTitle className="text-lg">
+                      Current Sensor Values
+                    </CardTitle>
+                    <CardDescription>
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className={`h-2 w-2 rounded-full ${
+                              selectedNode.isReceivingData
+                                ? "bg-green-500"
+                                : "bg-gray-400"
+                            }`}
+                          />
+                          <span className="text-xs">
+                            {selectedNode.isReceivingData
+                              ? "Live Data"
+                              : "No Data"}
+                          </span>
+                        </div>
+                        <p className="text-sm font-medium">
+                          Current node:{" "}
+                          <span className="font-semibold">
+                            {getNodeDisplayName(selectedNode.parsedInfo)}
+                          </span>
+                        </p>
+                      </div>
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-4">
+                      {/* Display current sensor values */}
+                      {Object.entries(selectedNode.currentValues).map(
+                        ([key, value]) => {
+                          if (value === undefined || value === null)
+                            return null;
+
+                          const getSensorConfig = (sensorKey: string) => {
+                            switch (sensorKey) {
+                              case "temperature":
+                                return {
+                                  icon: Thermometer,
+                                  unit: "°C",
+                                  iconColor: "text-green-600",
+                                  bgColor: "bg-muted",
+                                  textColor: "text-foreground",
+                                  valueColor: "text-foreground",
+                                };
+                              case "humidity":
+                                return {
+                                  icon: Droplets,
+                                  unit: "%",
+                                  iconColor: "text-orange-500",
+                                  bgColor: "bg-muted",
+                                  textColor: "text-foreground",
+                                  valueColor: "text-foreground",
+                                };
+                              case "tds":
+                                return {
+                                  icon: Beaker,
+                                  unit: "ppm",
+                                  iconColor: "text-blue-600",
+                                  bgColor: "bg-muted",
+                                  textColor: "text-foreground",
+                                  valueColor: "text-foreground",
+                                };
+                              case "ds":
+                                return {
+                                  icon: Zap,
+                                  unit: "μS/cm",
+                                  iconColor: "text-purple-600",
+                                  bgColor: "bg-muted",
+                                  textColor: "text-foreground",
+                                  valueColor: "text-foreground",
+                                };
+                              default:
+                                return {
+                                  icon: Thermometer,
+                                  unit: "",
+                                  iconColor: "text-gray-600",
+                                  bgColor: "bg-muted",
+                                  textColor: "text-foreground",
+                                  valueColor: "text-foreground",
+                                };
+                            }
+                          };
+
+                          const sensorConfig = getSensorConfig(key);
+                          const SensorIcon = sensorConfig.icon;
+
+                          return (
+                            <div
+                              key={key}
+                              className={`p-4 rounded-lg border ${sensorConfig.bgColor}`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <SensorIcon
+                                    className={`h-5 w-5 ${sensorConfig.iconColor}`}
+                                  />
+                                  <span
+                                    className={`text-sm font-medium capitalize ${sensorConfig.textColor}`}
+                                  >
+                                    {key}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="mt-2">
+                                <span
+                                  className={`text-2xl font-bold ${sensorConfig.valueColor}`}
+                                >
+                                  {value}
+                                  {sensorConfig.unit}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        },
+                      )}
+                    </div>
+
+                    <div className="mt-4 pt-4 border-t text-sm text-muted-foreground">
+                      <div className="flex flex-wrap items-center gap-4">
+                        <span>
+                          Last Update:{" "}
+                          {formatLastUpdate(selectedNode.lastUpdate)}
+                        </span>
+                        <span>•</span>
+                        <span>
+                          Data Points: {selectedNode.sensorHistory.length}
+                        </span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Charts Section */}
+                <div className="space-y-6">
+                  {/* Individual Sensor Charts */}
+                  {availableSensorTypes.length > 0 && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {availableSensorTypes.map((sensorType) => {
+                        const getSensorConfig = (sensorKey: string) => {
+                          switch (sensorKey) {
+                            case "temperature":
+                              return {
+                                icon: Thermometer,
+                                label: "Temperature",
+                                unit: "°C",
+                                color: "text-green-600",
+                              };
+                            case "humidity":
+                              return {
+                                icon: Droplets,
+                                label: "Humidity",
+                                unit: "%",
+                                color: "text-orange-500",
+                              };
+                            case "tds":
+                              return {
+                                icon: Beaker,
+                                label: "TDS",
+                                unit: "ppm",
+                                color: "text-blue-600",
+                              };
+                            case "ds":
+                              return {
+                                icon: Zap,
+                                label: "DS/EC",
+                                unit: "μS/cm",
+                                color: "text-purple-600",
+                              };
+                            default:
+                              return {
+                                icon: Thermometer,
+                                label: sensorKey,
+                                unit: "",
+                                color: "text-gray-600",
+                              };
+                          }
+                        };
+
+                        const sensorConfig = getSensorConfig(sensorType);
+                        const SensorIcon = sensorConfig.icon;
+
+                        return (
+                          <Card
+                            key={sensorType}
+                            className="backdrop-blur-sm bg-card/95 border-border/50 shadow-lg"
+                          >
+                            <CardHeader>
+                              <CardTitle className="flex items-center gap-2">
+                                <SensorIcon
+                                  className={`h-5 w-5 ${sensorConfig.color}`}
+                                />
+                                {sensorConfig.label} Over Time
+                              </CardTitle>
+                              <CardDescription>
+                                Reading {sensorConfig.label.toLowerCase()} from:{" "}
+                                <span className="font-medium">
+                                  {getNodeDisplayName(selectedNode.parsedInfo)}
+                                </span>
+                              </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                              <ChartContainer config={chartConfig}>
+                                <LineChart
+                                  data={getChartData()}
+                                  margin={{
+                                    top: 5,
+                                    right: 30,
+                                    left: 20,
+                                    bottom: 5,
+                                  }}
+                                >
+                                  <CartesianGrid
+                                    strokeDasharray="3 3"
+                                    className="stroke-muted"
+                                  />
+                                  <XAxis
+                                    dataKey="time"
+                                    className="text-xs"
+                                    tick={{ fontSize: 12 }}
+                                  />
+                                  <YAxis
+                                    domain={
+                                      sensorType === "humidity"
+                                        ? ["dataMin - 10", "dataMax + 10"]
+                                        : ["dataMin - 5", "dataMax + 5"]
+                                    }
+                                    className="text-xs"
+                                    tick={{ fontSize: 12 }}
+                                  />
+                                  <ChartTooltip
+                                    content={<ChartTooltipContent />}
+                                  />
+                                  <Line
+                                    type="monotone"
+                                    dataKey={sensorType}
+                                    stroke={
+                                      chartConfig[
+                                        sensorType as keyof typeof chartConfig
+                                      ]?.color
+                                    }
+                                    strokeWidth={2}
+                                    dot={{
+                                      fill: chartConfig[
+                                        sensorType as keyof typeof chartConfig
+                                      ]?.color,
+                                      strokeWidth: 2,
+                                      r: 0,
+                                    }}
+                                    connectNulls={false}
+                                  />
+                                </LineChart>
+                              </ChartContainer>
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Combined Chart for all sensors */}
+                  {availableSensorTypes.length > 1 && (
+                    <Card className="backdrop-blur-sm bg-card/95 border-border/50 shadow-lg">
+                      <CardHeader>
+                        <CardTitle>Combined Sensor Data</CardTitle>
+                        <CardDescription>
+                          All sensor readings from{" "}
+                          {getNodeDisplayName(selectedNode.parsedInfo)} on the
+                          same timeline
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <ChartContainer config={chartConfig}>
+                          <LineChart
+                            data={getChartData()}
+                            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                          >
+                            <CartesianGrid
+                              strokeDasharray="3 3"
+                              className="stroke-muted"
+                            />
+                            <XAxis
+                              dataKey="time"
+                              className="text-xs"
+                              tick={{ fontSize: 12 }}
+                            />
+                            <YAxis
+                              className="text-xs"
+                              tick={{ fontSize: 12 }}
+                            />
+                            <ChartTooltip content={<ChartTooltipContent />} />
+                            {availableSensorTypes.map((sensorType) => (
+                              <Line
+                                key={sensorType}
+                                type="monotone"
+                                dataKey={sensorType}
+                                stroke={
+                                  chartConfig[
+                                    sensorType as keyof typeof chartConfig
+                                  ]?.color
+                                }
+                                strokeWidth={2}
+                                dot={{
+                                  fill: chartConfig[
+                                    sensorType as keyof typeof chartConfig
+                                  ]?.color,
+                                  strokeWidth: 2,
+                                  r: 0,
+                                }}
+                                name={sensorType}
+                              />
+                            ))}
+                          </LineChart>
+                        </ChartContainer>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              </>
+            ) : (
+              <Card className="backdrop-blur-sm bg-card/95 border-border/50 shadow-lg">
+                <CardContent className="text-center py-12">
+                  <div className="space-y-4">
+                    <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center">
+                      <Wifi className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold">
+                        {connectedNodes.size === 0
+                          ? "Waiting for Sensor Data"
+                          : "Select a Node"}
+                      </h3>
+                      <p className="text-muted-foreground">
+                        {connectedNodes.size === 0
+                          ? isMQTTConnected
+                            ? "MQTT is connected. Waiting for nodes to send sensor data..."
+                            : "Please check your MQTT connection and ensure nodes are publishing data."
+                          : "Please select a node from the dropdown above to view its sensor data."}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
-        </Card>
-      )}
-    </Layout>
-  );
-};
+        </Main>
+        <Footer />
 
-export default Monitoring;
+        {/* Scroll to Top Button */}
+        <ScrollToTop />
+      </div>
+    </div>
+  );
+}

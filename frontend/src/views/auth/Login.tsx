@@ -1,157 +1,176 @@
-import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
-import Input from "../../components/ui/Input";
-import Button from "../../components/ui/Button";
-import Alert from "../../components/ui/Alert";
-import CSRFForm from "../../components/ui/CSRFForm";
-import PasswordInput from "../../components/ui/PasswordInput";
-import { useAuth } from "../../contexts";
-import { isValidEmail } from "../../utils/validation";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import Squares from "@/components/background/Squares";
+import { auth } from "@/utils/firebase";
+import {
+  sanitizeInput,
+  validateLoginForm,
+  getFirebaseErrorMessage,
+  type LoginValidation,
+} from "@/utils/validator";
+import { usePageTitle } from "@/hooks/usePageTitle";
 
-const Login = () => {
+export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [emailError, setEmailError] = useState("");
-  const [passwordError, setPasswordError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const { login } = useAuth();
+  const navigate = useNavigate();
 
-  // Set document title
-  useEffect(() => {
-    document.title = "LokaSync | Login";
-  }, []);
+  usePageTitle("Sign In");
 
-  const validateForm = (): boolean => {
-    let isValid = true;
-
-    // Reset errors
-    setEmailError("");
-    setPasswordError("");
-
-    // Validate email
-    if (!email) {
-      setEmailError("Email is required");
-      isValid = false;
-    } else if (!isValidEmail(email)) {
-      setEmailError("Please enter a valid email address");
-      isValid = false;
-    }
-
-    // Validate password
-    if (!password) {
-      setPasswordError("Password is required");
-      isValid = false;
-    }
-
-    return isValid;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
+    setError("");
 
-    if (!validateForm()) {
+    // Sanitize and validate inputs
+    const sanitizedEmail = sanitizeInput(email);
+    const formData: LoginValidation = {
+      email: sanitizedEmail,
+      password: password,
+    };
+
+    const validationError = validateLoginForm(formData);
+    if (validationError) {
+      setError(validationError);
+      setIsLoading(false);
       return;
     }
 
     try {
-      setError("");
-      setIsLoading(true);
-      await login(email, password);
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        // Improve error message for invalid credentials
-        if (
-          err.message.includes("auth/invalid-credential") ||
-          err.message.includes("auth/wrong-password") ||
-          err.message.includes("auth/user-not-found")
-        ) {
-          setError("Invalid username/password");
-        } else {
-          setError(err.message);
-        }
-      } else {
-        setError("Failed to log in");
-      }
+      await signInWithEmailAndPassword(auth, sanitizedEmail, password);
+      navigate("/dashboard");
+    } catch (error: unknown) {
+      setError(getFirebaseErrorMessage(error));
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="auth-form-container">
-      <div className="auth-form">
-        <div className="text-center mb-6">
-          <img
-            src="/lokasync_logo.png"
-            alt="LokaSync Logo"
-            className="h-20 w-20 mx-auto mb-4"
-          />
-          <h1 className="text-3xl font-bold text-lokasync-accent">
-            Sign In to Your Account
-          </h1>
-          <p className="text-gray-600 mt-2">Welcome back to LokaSync</p>
-        </div>
-
-        {error && (
-          <Alert type="error" message={error} onClose={() => setError("")} />
-        )}
-
-        <CSRFForm onSubmit={handleSubmit}>
-          <Input
-            label="Email Address"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Enter your email"
-            error={emailError}
-            required
-            autoFocus
-          />
-
-          <PasswordInput
-            label="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter your password"
-            error={passwordError}
-            required
-          />
-
-          <div className="flex items-center justify-end mb-4">
-            <Link
-              to="/forgot-password"
-              className="text-sm text-lokasync-primary hover:text-lokasync-secondary"
-            >
-              Forgot Password?
-            </Link>
-          </div>
-
-          <Button
-            type="submit"
-            fullWidth
-            size="lg"
-            isLoading={isLoading}
-            disabled={isLoading}
-          >
-            Sign In
-          </Button>
-        </CSRFForm>
-
-        <div className="text-center mt-6">
-          <p className="text-gray-600">
-            Don't have an account?{" "}
-            <Link
-              to="/register"
-              className="text-lokasync-primary hover:text-lokasync-secondary"
-            >
-              Sign Up
-            </Link>
-          </p>
-        </div>
+    <div className="min-h-screen flex items-center justify-center bg-background p-3 sm:p-4 relative overflow-hidden">
+      {/* Squares Background Animation */}
+      <div className="absolute inset-0 z-0">
+        <Squares
+          speed={0.3}
+          squareSize={15}
+          direction="diagonal"
+          borderColor="#24371f"
+          hoverFillColor="#284e13"
+        />
       </div>
+
+      {/* Login Card */}
+      <Card className="w-full max-w-sm sm:max-w-md mx-auto relative z-10 backdrop-blur-sm bg-card/95 border-border/50 shadow-2xl">
+        <CardHeader className="text-center pb-4">
+          <div className="mx-auto mb-3 flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center">
+            <img
+              src="/lokasync_logo.png"
+              alt="LokaSync Logo"
+              className="h-full w-full object-contain"
+            />
+          </div>
+          <CardTitle className="text-xl sm:text-2xl font-bold">
+            Welcome back!
+          </CardTitle>
+          <CardDescription className="text-sm">
+            Sign in to your LokaSync account.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <form onSubmit={handleLogin} className="space-y-3">
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription className="text-sm">{error}</AlertDescription>
+              </Alert>
+            )}
+
+            <div className="space-y-1.5">
+              <Label htmlFor="email" className="text-sm">
+                Email
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="Enter your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value.trim())}
+                required
+                autoFocus
+                autoComplete="email"
+                className="h-9"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="password" className="text-sm">
+                Password
+              </Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                  className="h-9 pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-9 w-9 px-0 hover:bg-transparent"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end pt-1">
+              <Link
+                to="/forgot-password"
+                className="text-xs sm:text-sm text-primary hover:underline"
+              >
+                Forgot password?
+              </Link>
+            </div>
+
+            <Button type="submit" className="w-full h-9" disabled={isLoading}>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Sign In
+            </Button>
+
+            <div className="text-center text-xs sm:text-sm pt-2">
+              Don't have an account?{" "}
+              <Link to="/register" className="text-primary hover:underline">
+                Sign up
+              </Link>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
-};
-
-export default Login;
+}

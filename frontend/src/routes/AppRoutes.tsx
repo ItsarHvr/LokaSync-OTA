@@ -1,62 +1,59 @@
-import { lazy, Suspense } from "react";
-import type React from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
-import { useAuth } from "../contexts";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+import { useAuthState } from "react-firebase-hooks/auth";
+import { auth } from "@/utils/firebase";
+import Login from "@/views/auth/Login";
+import Register from "@/views/auth/Register";
+import ForgotPassword from "@/views/auth/ForgotPassword";
+import Dashboard from "@/views/dashboard/Dashboard";
+import Monitoring from "@/views/monitoring/Monitoring";
+import Log from "@/views/log/Log";
+import Profile from "@/views/profile/Profile";
+import { Loader2 } from "lucide-react";
+import NotFound from "@/views/error/NotFound";
 
-// Lazy load page components
-const Login = lazy(() => import("../views/auth/Login"));
-const Register = lazy(() => import("../views/auth/Register"));
-const ForgotPassword = lazy(() => import("../views/auth/ForgotPassword"));
-const Dashboard = lazy(() => import("../views/dashboard/Dashboard"));
-const AddFirmware = lazy(() => import("../views/firmware/AddFirmware"));
-const EditFirmware = lazy(() => import("../views/firmware/EditFirmware"));
-const Monitoring = lazy(() => import("../views/monitoring/Monitoring"));
-const LogPage = lazy(() => import("../views/log/LogPage"));
-const Profile = lazy(() => import("../views/profile/Profile"));
-const NotFound = lazy(() => import("../views/NotFound"));
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const [user, loading] = useAuthState(auth);
 
-// Loading component for suspense fallback
-const Loading = () => (
-  <div className="flex items-center justify-center min-h-screen">
-    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-lokasync-primary"></div>
-  </div>
-);
-
-// Protected route component
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { currentUser, isLoading } = useAuth();
-
-  if (isLoading) {
-    return <Loading />;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
   }
 
-  if (!currentUser) {
-    return <Navigate to="/login" />;
+  return user ? <>{children}</> : <Navigate to="/login" />;
+}
+
+function PublicRoute({ children }: { children: React.ReactNode }) {
+  const [user, loading] = useAuthState(auth);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
   }
 
-  return children;
-};
+  return !user ? <>{children}</> : <Navigate to="/dashboard" />;
+}
 
-// Public route component (accessible only when not logged in)
-const PublicRoute = ({ children }: { children: React.ReactElement }) => {
-  const { currentUser, isLoading } = useAuth();
-
-  if (isLoading) {
-    return <Loading />;
-  }
-
-  if (currentUser) {
-    return <Navigate to="/dashboard" />;
-  }
-
-  return children;
-};
-
-const AppRoutes = () => {
+export default function AppRoutes() {
   return (
-    <Suspense fallback={<Loading />}>
+    <Router>
       <Routes>
-        {/* Public routes (only when not logged in) */}
+        <Route path="/" element={<Navigate to="/dashboard" />} />
+
+        {/* Catch-all route for 404 Not Found */}
+        <Route path="*" element={<NotFound />} />
+
+        {/* Public Routes */}
         <Route
           path="/login"
           element={
@@ -82,7 +79,7 @@ const AppRoutes = () => {
           }
         />
 
-        {/* Protected routes (only when logged in) */}
+        {/* Protected Routes */}
         <Route
           path="/dashboard"
           element={
@@ -92,18 +89,10 @@ const AppRoutes = () => {
           }
         />
         <Route
-          path="/firmware/add"
+          path="/log"
           element={
             <ProtectedRoute>
-              <AddFirmware />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/firmware/edit/:nodeName"
-          element={
-            <ProtectedRoute>
-              <EditFirmware />
+              <Log />
             </ProtectedRoute>
           }
         />
@@ -116,14 +105,6 @@ const AppRoutes = () => {
           }
         />
         <Route
-          path="/log"
-          element={
-            <ProtectedRoute>
-              <LogPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
           path="/profile"
           element={
             <ProtectedRoute>
@@ -131,15 +112,7 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
-
-        {/* Redirect from root to dashboard or login */}
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-
-        {/* 404 page */}
-        <Route path="*" element={<NotFound />} />
       </Routes>
-    </Suspense>
+    </Router>
   );
-};
-
-export default AppRoutes;
+}

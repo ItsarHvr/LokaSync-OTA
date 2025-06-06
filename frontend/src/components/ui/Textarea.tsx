@@ -1,56 +1,18 @@
-import React, { forwardRef } from "react";
+import * as React from "react";
 
-interface TextareaProps
-  extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
-  label?: string;
-  error?: string;
-  helperText?: string;
-  fullWidth?: boolean;
-  required?: boolean;
+import { cn } from "@/lib/utils";
+
+function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
+  return (
+    <textarea
+      data-slot="textarea"
+      className={cn(
+        "border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 flex field-sizing-content min-h-16 w-full rounded-md border bg-transparent px-3 py-2 text-base shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+        className,
+      )}
+      {...props}
+    />
+  );
 }
 
-const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
-  (
-    {
-      label,
-      error,
-      helperText,
-      fullWidth = true,
-      required = false,
-      className = "",
-      ...props
-    },
-    ref,
-  ) => {
-    const textareaClasses = `
-    lokasync-input
-    ${error ? "border-red-500 focus:border-red-500" : "border-gray-300 focus:border-lokasync-primary"}
-    ${fullWidth ? "w-full" : ""}
-    ${className}
-  `;
-
-    return (
-      <div className={`mb-6 ${fullWidth ? "w-full" : ""}`}>
-        {label && (
-          <label className="block text-gray-700 mb-1">
-            {label} {required && <span className="text-red-500">*</span>}
-          </label>
-        )}
-        <textarea
-          ref={ref}
-          className={textareaClasses}
-          aria-invalid={error ? "true" : "false"}
-          {...props}
-        />
-        {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
-        {helperText && !error && (
-          <p className="mt-1 text-sm text-gray-500">{helperText}</p>
-        )}
-      </div>
-    );
-  },
-);
-
-Textarea.displayName = "Textarea";
-
-export default Textarea;
+export { Textarea };

@@ -10,31 +10,33 @@ const Footer = () => {
   if (isAuthPage) return null;
 
   return (
-    <footer className="bg-white border-t border-lokasync-border py-6 mt-auto">
-      <div className="lokasync-container">
-        <div className="flex flex-col md:flex-row justify-between items-center">
-          <div className="mb-4 md:mb-0">
-            <p className="text-sm text-gray-600">
+    <footer className="bg-background border-t border-border py-4 mt-auto w-full">
+      <div className="w-full px-3 sm:px-4 lg:px-6">
+        <div className="flex flex-col sm:flex-row justify-between items-center max-w-7xl mx-auto">
+          <div className="mb-2 sm:mb-0">
+            <p className="text-xs sm:text-sm text-muted-foreground">
               &copy; {new Date().getFullYear()} LokaSync - All rights reserved.
             </p>
           </div>
 
-          <div className="flex space-x-4">
+          <div className="flex space-x-3 sm:space-x-4">
             <a
-              href="#"
-              className="text-sm text-gray-600 hover:text-lokasync-primary"
+              href="https://github.com/LokaSync/LokaSync"
+              target="_blank"
+              className="text-xs sm:text-sm text-muted-foreground hover:text-primary"
             >
-              Privacy Policy
+              LokaSync Repo
             </a>
             <a
-              href="#"
-              className="text-sm text-gray-600 hover:text-lokasync-primary"
+              href="https://lokatani.id/contact-us"
+              target="_blank"
+              className="text-xs sm:text-sm text-muted-foreground hover:text-primary"
             >
-              Terms of Service
+              Contact Lokatani
             </a>
             <a
-              href="#"
-              className="text-sm text-gray-600 hover:text-lokasync-primary"
+              href="mailto:itsar.hevara.tik22@mhsw.pnj.ac.id"
+              className="text-xs sm:text-sm text-muted-foreground hover:text-primary"
             >
               Contact Us
             </a>
