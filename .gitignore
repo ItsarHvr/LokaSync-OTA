@@ -19,7 +19,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
 lib64/
 parts/
 sdist/
@@ -436,11 +435,7 @@ firebase_sa_key.json
 lokasync-firebase-creds.json
 serviceAccountKey.json
 credentials.json
-
-# Google Drive API keys
 gdrive_api_key.json
-
-# Google Cloud service account keys
 gcloud-service-key.json
 lokasyncGoogleDriveKey.json
 lokasync-gdrive-creds.json
@@ -454,3 +449,8 @@ emqxsl-ca.crt
 
 # Temporary folders to store firmware files.
 temp/
+
+# Ignore sample firmware files.
+*.bin
+*.elf
+*.hex
