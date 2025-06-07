@@ -1,0 +1,101 @@
+services:
+  # Database
+  mongodb:
+    image: mongo:8.0
+    container_name: lokasync-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_DATABASE}
+    ports:
+      - "${MONGO_PORT}:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    networks:
+      - lokasync-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: lokasync-backend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+    env_file:
+      - ./backend/.env
+    ports:
+      - "${BACKEND_PORT}:8000"
+    volumes:
+      - ./backend/gdrive-credentials.json:/app/gdrive-credentials.json:ro
+      - ./backend/firebase-credentials.json:/app/firebase-credentials.json:ro
+      - ./backend/emqxsl-ca.crt:/app/emqxsl-ca.crt:ro
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - lokasync-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend Builder (runs once and exits)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: builder
+    container_name: lokasync-frontend
+    volumes:
+      - frontend_dist:/dist
+    depends_on:
+      - backend
+    networks:
+      - lokasync-network
+
+  # Web Server (Nginx)
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: lokasync-nginx
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT}:80"
+    volumes:
+      - frontend_dist:/usr/share/nginx/html:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - lokasync-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  mongodb_data:
+    driver: local
+  mongodb_config:
+    driver: local
+  frontend_dist:
+    driver: local
+
+networks:
+  lokasync-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

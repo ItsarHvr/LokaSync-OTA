@@ -1,0 +1,11 @@
+tests/
+logs/
+__pycache__/
+.venv/
+.env.example
+eqmxsl-ca-example.crt
+firebase-credentials.json
+gdrive-credentials.json
+requirements-dev.txt
+Dockerfile
+.dockerignore
