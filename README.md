@@ -129,15 +129,15 @@ cd LokaSync
 ![EMQX Dashboard](./assets/images/mqtt-broker-dashboard.png)
 
 - An MQTT broker is required. A free-tier instance from [EMQX Cloud](https://www.emqx.com/en/cloud) can be used, or you may deploy a local broker.
-- Once the broker is running, configure the connection details in the `.env` files for both the backend and frontend, including the broker usrname and password.
-- If MQTTS is used, the broker's CA certificate file must be placed in the `backend/` directory and its path specified in the configuration. The frontend does not require this certificate file for WebSocket connections.
+- Once the broker is running, configure the connection details in the `.env` files for both the backend and frontend, including the broker username and password.
+- If MQTTS is used, the broker's CA certificate file must be placed in the `backend/` folder and its path specified in the configuration. The frontend does not require this certificate file for WebSocket connections.
 
 ### ⚙️ Configure Backend `.env` File
 
-Create a `.env` file in the `backend/` directory and populate it with the following:
+Create a `.env` file in the `backend/` folder and populate it with the following:
 
 ```txt
-MONGO_CONNECTION_URL=mongodb://localhost:27017/
+MONGO_CONNECTION_URL=mongodb://localhost:27017/ # Use `mongodb://mongodb/` if running with docker-compose.
 MONGO_DATABASE_NAME=test_db
 MQTT_BROKER_URL=broker.emqx.io
 MQTT_BROKER_PORT=1883
@@ -149,7 +149,7 @@ TIMEZONE=Asia/Jakarta # Adjust timezone according to your location.
 
 ### ⚙️ Configure Frontend `.env` File
 
-Create a `.env` file in the `frontend/` directory and populate it with the following:
+Create a `.env` file in the `frontend/` folder and populate it with the following:
 
 ```txt
 VITE_FIREBASE_API_KEY=REDACTED
