@@ -71,7 +71,7 @@ The application utilizes the MQTT(S) protocol for firmware update and real-time 
 
 The LokaSync application is containerized using Docker and orchestrated with Docker Compose. The environment consists of 4 main services:
 
-- `mongo:latest` — Provides the NoSQL database service.
+- `mongo:8.0` — Provides the NoSQL database service.
 - `python:3.13-alpine` — Runs the FastAPI backend application.
 - `node:22.15.0-alpine` — Builds the static React frontend assets.
 - `nginx:stable-alpine` — Acts as a reverse proxy, directing traffic to the frontend or backend service.
