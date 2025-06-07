@@ -78,20 +78,24 @@ export function NodeDetailDialog({
             <CardContent className="space-y-3">
               <div>
                 <Label className="text-sm font-medium">Current Version</Label>
-                <p className="text-sm mt-1">{node.firmware_version}</p>
+                <span className="font-mono text-sm">
+                  {node.firmware_version || "N/A"}
+                </span>
               </div>
               <div>
                 <Label className="text-sm font-medium">Firmware URL</Label>
-                <p className="text-sm mt-1 break-all text-blue-600 hover:text-blue-800">
+                {node.firmware_url ? (
                   <a
                     href={node.firmware_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="underline"
+                    className="text-blue-600 hover:underline"
                   >
                     {node.firmware_url}
                   </a>
-                </p>
+                ) : (
+                  <span className="font-mono text-sm">N/A</span>
+                )}
               </div>
               {node.description && (
                 <div>

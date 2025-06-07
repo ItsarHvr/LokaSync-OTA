@@ -209,7 +209,9 @@ npm run build # For production ready.
 
 ### 2️⃣ Dockerized Setup
 
-This is the recommended method for a streamlined setup.
+- This is the recommended method for a streamlined setup.
+- But before that, you've to change the `MONGO_CONNECTION_URL` in your backend `.env` file with `mongodb://mongodb/`. If not, the `lokasync-backend` container cannot connect with `lokasync-mongodb` container.
+- Then, we can execute the `docker-compose.yml` using below command.
 
 ```shell
 # This command will build the images and start all services in detached mode.

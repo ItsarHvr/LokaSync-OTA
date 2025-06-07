@@ -106,8 +106,25 @@ export const nodeController = {
     nodeCodename: string,
     firmwareVersion?: string,
   ): Promise<ApiResponse<Node>> {
+    // If Needed: Ensure firmwareVersion is a string
+    // if (typeof firmwareVersion !== "string") {
+    //   throw new Error("Firmware version must be a string");
+    // }
+
+    // Safe version validation
+    // const isValidVersion = /^\d+\.\d+\.\d+$/.test(firmwareVersion.trim());
+    // if (!isValidVersion) {
+    //   throw new Error("Firmware version must be in format X.Y.Z (e.g., 1.0.0)");
+    // }
+
     const params = firmwareVersion ? { firmware_version: firmwareVersion } : {};
     const response = await api.get(`/node/detail/${nodeCodename}`, { params });
+
+    // Check if response data is valid
+    // if (!response.data || !response.data.node) {
+    //   throw new Error("Failed to fetch node details");
+    // }
+
     return response.data;
   },
 

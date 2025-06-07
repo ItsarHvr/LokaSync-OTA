@@ -294,6 +294,16 @@ export function FirmwareManagementTable({
     try {
       const selectedVersion =
         selectedVersions[node.node_codename] || node.firmware_version;
+
+      // Add null check for firmwareVersions
+      if (!selectedVersion) {
+        toast.error("No Firmware Version", {
+          description:
+            "This node doesn't have any firmware version set. Please upload firmware first.",
+        });
+        return;
+      }
+
       const filename = `${node.node_codename}_v${selectedVersion}.bin`;
 
       await nodeController.downloadFirmware(
@@ -328,6 +338,15 @@ export function FirmwareManagementTable({
     try {
       const selectedVersion =
         selectedVersions[node.node_codename] || node.firmware_version;
+
+      // Add null check for firmwareVersions
+      if (!selectedVersion) {
+        toast.error("No Firmware Version", {
+          description:
+            "This node doesn't have any firmware version set. Please upload firmware first.",
+        });
+        return;
+      }
 
       const nodeDetail = await nodeController.getNodeDetail(
         node.node_codename,
