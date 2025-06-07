@@ -84,7 +84,7 @@ export default function Register() {
       {/* Squares Background Animation */}
       <div className="absolute inset-0 z-0">
         <Squares
-          speed={0.3}
+          speed={0.5}
           squareSize={15}
           direction="diagonal"
           borderColor="#24371f"

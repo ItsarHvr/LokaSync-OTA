@@ -359,7 +359,7 @@ export default function Monitoring() {
       {/* Squares Background Animation */}
       <div className="absolute inset-0 z-0">
         <Squares
-          speed={0.2}
+          speed={0.5}
           squareSize={12}
           direction="diagonal"
           borderColor="#24371f"
