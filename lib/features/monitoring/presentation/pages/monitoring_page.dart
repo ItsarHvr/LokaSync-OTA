@@ -19,7 +19,7 @@ const sensorMeta = {
     'icon': Icons.water_drop,
     'color': Color(0xFF1976D2),
   },
-  'tds': {
+  'PPM': {
     'name': 'TDS',
     'unit': 'PPM',
     'icon': Icons.opacity,
@@ -100,8 +100,8 @@ class _MonitoringState extends State<Monitoring> {
   late final SensorDataHolder _dataHolder;
   String? _selectedNodeId;
   String? _selectedSensorId;
-  bool _isLoading = false;
-  int _currentIndex = 1;
+  final bool _isLoading = false;
+  final int _currentIndex = 1;
 
   @override
   void initState() {
