@@ -484,10 +484,10 @@ packages:
     dependency: "direct main"
     description:
       name: mqtt_client
-      sha256: "7f2cb7faf1bfd132abb4075d64418894f7811e376a4c4db947b4a19d7f569821"
+      sha256: f7d96372aff2a2e871f859104276900029858ce6ea91c7fe7ada7badc7eefe5e
       url: "https://pub.dev"
     source: hosted
-    version: "10.8.1"
+    version: "10.9.1"
   path:
     dependency: "direct main"
     description:
@@ -694,7 +694,7 @@ packages:
     source: hosted
     version: "0.7.4"
   typed_data:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: typed_data
       sha256: f9049c039ebfeb4cf7a7104a675823cd72dba8297f264b6637062516699fa006

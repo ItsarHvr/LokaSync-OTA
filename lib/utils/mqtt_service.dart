@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/services.dart'; // <-- Add this import
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 
@@ -14,7 +15,6 @@ class MQTTService {
   late int port;
   late String topic;
   late String clientId;
-  late String caCert;
   late OnSensorData onSensorData;
   String? username;
   String? password;
@@ -26,7 +26,6 @@ class MQTTService {
     required int port,
     required String topic,
     required String clientId,
-    required String caCert,
     required OnSensorData onSensorData,
     String? username,
     String? password,
@@ -35,7 +34,6 @@ class MQTTService {
     this.port = port;
     this.topic = topic;
     this.clientId = clientId;
-    this.caCert = caCert;
     this.onSensorData = onSensorData;
     this.username = username;
     this.password = password;
@@ -51,7 +49,9 @@ class MQTTService {
     client.onSubscribed = onSubscribed;
 
     final context = SecurityContext.defaultContext;
-    context.setTrustedCertificatesBytes(utf8.encode(caCert));
+    // Load the CA certificate from assets
+    final caBytes = await rootBundle.load('assets/ca.crt');
+    context.setTrustedCertificatesBytes(caBytes.buffer.asUint8List());
     client.securityContext = context;
 
     final connMess = MqttConnectMessage()
