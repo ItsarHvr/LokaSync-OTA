@@ -447,6 +447,10 @@ ca*.pem
 ca*.crt
 emqxsl-ca.crt
 
+# Ignore package-lock.json and yarn.lock files.
+package-lock.json
+yarn.lock
+
 # Temporary folders to store firmware files.
 temp/
 

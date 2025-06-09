@@ -6,8 +6,8 @@
   <h1>LokaSync Web App</h1>
 
   <p>
-    <img src="https://img.shields.io/badge/Version-1.0.0-green?style=flat-square" alt="lokasync-version" />
-    <img src="https://img.shields.io/badge/Deployed%20on-Google%20Cloud-%234285F4.svg?style=flat-square&logo=google-cloud&logoColor=white" alt="google-cloud" />
+    <img src="https://img.shields.io/badge/Version-1.0.1-green?style=flat-square" alt="lokasync-version" />
+    <img src="https://img.shields.io/badge/Deployed%20on-Google%20Cloud%20VM-%234285F4.svg?style=flat-square&logo=google-cloud&logoColor=white" alt="google-cloud" />
   </p>
 
   <p>
@@ -27,18 +27,19 @@
 ## 👋 Introducing Our App
 
 **What is LokaSync ?**
+
 > LokaSync is a solution to make update firmware of your ESP devices more efficient, because it will update via Over-The-Air (OTA). Simply, our app is a **firmware version control** for your ESP devices.
 
 **What happens if incorrect firmware is uploaded?**
 
-> *It's your fault, not our team*. 🤭
-Traditionally, a mistake made during firmware flashing, such as setting incorrect configuration values, it **requires a manual re-flash of the ESP device**. This process is time-consuming and prone to error, especially for multiple devices deployed in various locations. So, it's crucial to **double check that firmware versions are verified** before an update is initiated.
+> _It's your fault, not our team_. 🤭
+> Traditionally, a mistake made during firmware flashing, such as setting incorrect configuration values, it **requires a manual re-flash of the ESP device**. This process is time-consuming and prone to error, especially for multiple devices deployed in various locations. So, it's crucial to **double check that firmware versions are verified** before an update is initiated.
 
 **Why choose LokaSync?**
 
-> *Because it's blazingly fast and secure*. ⚡
-LokaSync is built for **efficiency and security**. Firmware data is transmitted securely and with minimal bandwidth usage by leveraging the MQTT(S) protocol. 🚀
-User authentication is managed by Google through Firebase Authentication, ensuring that sensitive credentials are not handled or stored by our application.
+> _Because it's blazingly fast and secure_. ⚡
+> LokaSync is built for **efficiency and security**. Firmware data is transmitted securely and with minimal bandwidth usage by leveraging the MQTT(S) protocol. 🚀
+> User authentication is managed by Google through Firebase Authentication, ensuring that sensitive credentials are not handled or stored by our application.
 
 ## 🖥️ Development Environment
 
@@ -72,31 +73,41 @@ The application utilizes the MQTT(S) protocol for firmware update and real-time 
 The LokaSync application is containerized using Docker and orchestrated with Docker Compose. The environment consists of 4 main services:
 
 - `mongo:8.0` — Provides the NoSQL database service.
-- `python:3.13-alpine` — Runs the FastAPI backend application.
-- `node:22.15.0-alpine` — Builds the static React frontend assets.
-- `nginx:stable-alpine` — Acts as a reverse proxy, directing traffic to the frontend or backend service.
+- `python:3.13.3-alpine` — Runs the FastAPI backend application.
+- `node:22.16.0-alpine` — Builds the static React frontend assets.
+- `nginx:stable-alpine` — Serve web content from React buit files.
+- `jc21/nginx-proxy-manager:latest` — Acts as reverse proxy.
 
 ## ✨ Features
 
-| Description | Status |
-| ----------- | :----: |
-| Over-the-Air (OTA) firmware updates for single devices (Cloud OTA)| ✅ |
-| Real-time logging of the firmware update process | ✅ |
-| Log export functionality (PDF or CSV) | ✅ |
-| Automatic firmware storage on Google Drive | ✅ |
-| Modern UI with a default dark theme | ✅ |
-| User profile customization | ✅ |
-| **Bonus**: Real-time sensor data monitoring (tested for `humidity` and `temperature`) | ✅ |
-| **In Progress**: Group OTA updates for multiple nodes | ⌛ |
-| **In Progress**: Local OTA updates via ESP Access Point mode | ⌛ |
+| Description                                                                           | Status |
+| ------------------------------------------------------------------------------------- | :----: |
+| Over-the-Air (OTA) firmware updates for single devices (Cloud OTA)                    |   ✅   |
+| Real-time logging of the firmware update process                                      |   ✅   |
+| Log export functionality (PDF or CSV)                                                 |   ✅   |
+| Automatic firmware storage on Google Drive                                            |   ✅   |
+| Modern UI with a default dark theme                                                   |   ✅   |
+| User profile customization                                                            |   ✅   |
+| Easy deployment using `docker-compose.yml` file                                       |   ✅   |
+| **Bonus**: Real-time sensor data monitoring (tested for `humidity` and `temperature`) |   ✅   |
+| **In Progress**: Group OTA updates for multiple nodes                                 |   ⌛   |
+| **In Progress**: Local OTA updates via ESP Access Point mode                          |   ⌛   |
 
 ## ℹ️ Usage
 
-### 🔽 Clone the Repository
+### 🔽 Clone the Repository (Not Published Yet / Private)
 
 ```shell
-git clone github.com/LokaSync/LokaSync
+git clone https://github.com/LokaSync/LokaSync
 cd LokaSync
+
+# You can use this repo to clone
+git clone https://github.com/ItsarHvr/LokaSync-OTA.git
+# Then, change branch to `web-tmp`.
+git fetch all
+get checkout web-tmp
+# Make sure you're in the branch
+git branch --show-current
 ```
 
 ### 🗃️ Setup Google Drive API
@@ -137,14 +148,28 @@ cd LokaSync
 Create a `.env` file in the `backend/` folder and populate it with the following:
 
 ```txt
-MONGO_CONNECTION_URL=mongodb://localhost:27017/ # Use `mongodb://mongodb/` if running with docker-compose.
-MONGO_DATABASE_NAME=test_db
+# Database Configuration
+MONGO_USERNAME=mongo_admin
+MONGO_PASSWORD=mongo_password
+MONGO_HOST=mongodb # Change this if you're using MongoDB in host machine
+MONGO_PORT=27017 # Change this if you're use MongoDB in host machine
+MONGO_DATABASE_NAME=app_db
+
+# MQTT Configuration
 MQTT_BROKER_URL=broker.emqx.io
 MQTT_BROKER_PORT=1883
+
+# Firebase Configuration
 FIREBASE_CREDS_NAME=firebase-credentials.json
+
+# Google Drive Configuration
 GOOGLE_DRIVE_CREDS_NAME=gdrive-credentials.json
 GOOGLE_DRIVE_FOLDER_ID=REDACTED
-TIMEZONE=Asia/Jakarta # Adjust timezone according to your location.
+
+# Default Backend Timezone
+# Adjust timezone according to your location
+# e.g. Asia/Tokyo
+TIMEZONE=Asia/Jakarta
 ```
 
 ### ⚙️ Configure Frontend `.env` File
@@ -152,85 +177,50 @@ TIMEZONE=Asia/Jakarta # Adjust timezone according to your location.
 Create a `.env` file in the `frontend/` folder and populate it with the following:
 
 ```txt
+# Firebase Auth related configuration
 VITE_FIREBASE_API_KEY=REDACTED
 VITE_FIREBASE_AUTH_DOMAIN=REDACTED
 VITE_FIREBASE_PROJECT_ID=REDACTED
 VITE_FIREBASE_STORAGE_BUCKET=REDACTED
 VITE_FIREBASE_MESSAGING_SENDER_ID=REDACTED
 VITE_FIREBASE_APP_ID=REDACTED
+
+# API related configuration
+# Note: Avoid using docker compose service name like `http://backend`.
 VITE_BASE_API_URL=http://localhost:8000
+
+# MQTT related configuration
 VITE_MQTT_BROKER_URL=ws://broker.emqx.io:8083/mqtt
 ```
 
-> ⚠️ **Important**: Ensure all environment variables are set correctly before proceeding.
+### ️️⚙️ Configure Docker Compose `.env` File
 
-## 🚀 Run the App Locally
-
-Once the setup and configuration are complete, the application can be run locally using one of the following methods.
-
-### 1️⃣ Manual Setup (Without Docker)
-
-> 📓 **Note**: Python version `^3.13.0` and NodeJS version `^22.15.0` (LTS) are required.
-
-- **[Run MongoDB](https://www.mongodb.com/docs/manual/installation/)**: Ensure a MongoDB instance is running and accessible. Refer to the [official installation guide](https://www.mongodb.com/docs/manual/installation/).
-- **Run Backend (FastAPI)**:
-
-```shell
-cd backend/
-# Create new python virtual env.
-# For Linux/MacOS.
-python3 -m venv .venv
-source .venv/bin/activate
-pip3 install --upgrade -r requirements.txt --no-cache-dir # Install dependencies.
-
-# For Windows-PowerShell.
-python.exe -m venv .venv
-.venv/Scripts/Activate.ps1
-pip.exe install --upgrade -r requirements.txt --no-cache-dir
-
-# Go to src folder.
-cd src/
-uvicorn main:app --reload # Using debug mode.
-uvicorn main:app # Using production mode.
-
-# FastAPI will be serve on http://localhost:8000/api/v1/docs
-```
-
-- **Run Frontend (React)**:
-
-```shell
-cd frontend/
-npm i # Install dependencies.
-npm run dev # For development mode.
-npm run build # For production ready.
-
-# React app will be serve on http://localhost:3000
-```
-
-### 2️⃣ Dockerized Setup
-
-- This is the recommended method for a streamlined setup.
-- Change the `MONGO_CONNECTION_URL` in your backend `.env` file with `mongodb://mongodb/`. If not, the `lokasync-backend` container cannot connect with `lokasync-mongodb` container.
-- Create a new `.env` file for your `docker-compose.yml`.
+Create a `.env` file in the root folder and populate with the following:
 
 ```txt
 # Database Configuration
-MONGO_USERNAME=
-MONGO_PASSWORD=
-MONGO_DATABASE=test_db
-MONGO_PORT=27017
+MONGO_USERNAME=mongo_admin
+MONGO_PASSWORD=mongo_password
+MONGO_DATABASE=app_db
+MONGO_PORT=27017 # Change this if you're not using the default MongoDB port.
+
+# External Services Configuration
+GOOGLE_DRIVE_CREDS_NAME=gdrive-credentials.json
+FIREBASE_CREDS_NAME=firebase-credentials.json
+MQTTS_BROKER_CERT_NAME=emqxsl-ca.crt
 
 # Backend Configuration
 BACKEND_PORT=8000
+# Backend will running on port 8000
 
 # Frontend Configuration
 FRONTEND_PORT=3000
-
-# Environment
-NODE_ENV=production
+# Frontend will running on port 3000
 ```
 
-- Finally, we can execute the `docker-compose.yml` using this command.
+> ⚠️ **Important**: Please refer to the `.env.example` fie and ensure all env variables are set correctly before proceeding.
+
+## 🚀 Run the App with Docker Compose
 
 ```shell
 # This command will build the images and start all services in detached mode.
@@ -242,16 +232,16 @@ sudo docker-compose up -d
 
 ## ▶️ Demo Video
 
-🎥 *Coming Soon*.
+🎥 _Coming Soon_.
 
 ## ⚔️ LokaSync Team
 
-| Name | Student ID (NIM) | Roles |
-| ---- | --- | -------- |
-| Alfarizki Nurachman | 2207421041 | Back-end Developer |
-| Itsar Hevara | 2207421046 | Team Manager + IoT Developer |
-| Jonathan Victorian Wijaya | 2207421051 | IoT Developer |
-| Wahyu Priambodo | 2207421048 | Web Pentester + Front-end Developer |
+| Name                      | Student ID (NIM) | Roles                               |
+| ------------------------- | ---------------- | ----------------------------------- |
+| Alfarizki Nurachman       | 2207421041       | Back-end Developer                  |
+| Itsar Hevara              | 2207421046       | Team Manager + IoT Developer        |
+| Jonathan Victorian Wijaya | 2207421051       | IoT Developer                       |
+| Wahyu Priambodo           | 2207421048       | Web Pentester + SysAdmin + Front-end Developer |
 
 ## 📬 Contact
 

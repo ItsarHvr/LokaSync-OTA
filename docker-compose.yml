@@ -28,16 +28,10 @@ services:
       dockerfile: Dockerfile
     container_name: lokasync-backend
     restart: unless-stopped
-    environment:
-      - NODE_ENV=production
     env_file:
       - ./backend/.env
     ports:
       - "${BACKEND_PORT}:8000"
-    volumes:
-      - ./backend/gdrive-credentials.json:/app/gdrive-credentials.json:ro
-      - ./backend/firebase-credentials.json:/app/firebase-credentials.json:ro
-      - ./backend/emqxsl-ca.crt:/app/emqxsl-ca.crt:ro
     depends_on:
       mongodb:
         condition: service_healthy
@@ -54,43 +48,48 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      target: builder
     container_name: lokasync-frontend
-    volumes:
-      - frontend_dist:/dist
+    restart: unless-stopped
+    env_file:
+      - ./frontend/.env
+    ports:
+      - "80:${FRONTEND_PORT}"
+      - "443:${FRONTEND_PORT}" # Forced HTTPS
     depends_on:
       - backend
     networks:
       - lokasync-network
 
-  # Web Server (Nginx)
-  nginx:
-    build:
-      context: ./nginx
-      dockerfile: Dockerfile
-    container_name: lokasync-nginx
+  # Nginx Proxy Manager
+  proxy:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: lokasync-nginx-proxy-manager
     restart: unless-stopped
+    environment:
+      DB_SQLITE_FILE: /data/proxy_database.sqlite
+      DISABLE_IPV6: 'true'
     ports:
-      - "${FRONTEND_PORT}:80"
-    volumes:
-      - frontend_dist:/usr/share/nginx/html:ro
+      - "8080:80"
+      - "8443:443"
+      - "81:81" # Admin interface
     depends_on:
+      - mongodb
       - backend
       - frontend
+    volumes:
+      - proxy_data:/data
+      - proxy_ssl:/etc/letsencrypt
     networks:
       - lokasync-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
 volumes:
   mongodb_data:
     driver: local
   mongodb_config:
     driver: local
-  frontend_dist:
+  proxy_data:
+    driver: local
+  proxy_ssl:
     driver: local
 
 networks:
