@@ -6,7 +6,7 @@ LABEL description="LokaSync backend service"
 LABEL api_version="1"
 
 # Set environment variables
-ENV APP_DIR="/home/lokasync/backend"
+ENV APP_DIR="/lokasync"
 ENV APP_PORT="8000"
 ENV LOCAL_USER="lokasync-backend"
 ENV LOCAL_GROUP="lokasync-group"
@@ -24,11 +24,11 @@ RUN mkdir -p $APP_DIR && \
 WORKDIR $APP_DIR
 
 # Copy the requirements file and install dependencies
-COPY requirements.txt .
+COPY requirements.txt ./
 RUN pip install --no-cache-dir --upgrade -r requirements.txt
 
-# Copy the application code
-COPY . .
+# Copy the application code, including all the creds and crt files.
+COPY ./ ./
 
 # Change working directory to the src folder
 WORKDIR $APP_DIR/src

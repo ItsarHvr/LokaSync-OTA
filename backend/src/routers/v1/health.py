@@ -18,8 +18,8 @@ async def health_check():
                 "message": "healthy",
                 "status_code": status.HTTP_200_OK,
                 "api_docs": {
-                    "swagger": f"/api/v{env.APP_VERSION}/docs",
-                    "redoc": f"/api/v{env.APP_VERSION}/redoc",
+                    "swagger": f"/api/v{env.API_VERSION}/docs",
+                    "redoc": f"/api/v{env.API_VERSION}/redoc",
                 }
             },
             status_code=status.HTTP_200_OK

@@ -1,5 +1,4 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError, HTTPException
 from contextlib import asynccontextmanager
 import asyncio
@@ -14,6 +13,8 @@ from routers.v1.health import router_health
 from routers.v1.node import router_node
 from routers.v1.monitoring import router_monitoring
 from routers.v1.log import router_log
+
+from middlewares.cors import CORSMiddleware
 
 from externals.firebase.client import init_firebase_app
 from externals.mqtts.run import start_mqtt_service, stop_mqtt_service
@@ -104,10 +105,29 @@ app: FastAPI = FastAPI(
 ##### Add middlewares #####
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=env.MIDDLEWARE_CORS_ALLOWED_ORIGINS or ["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allowed_origins=[
+        "http://localhost",
+        "http://localhost:3000",
+        "http://localhost:5173"
+        # Add your frontend URLs here
+    ],
+    allow_credentials=False, # Set to True if you need cookies for auth
+    allowed_methods=[
+        "OPTIONS", "GET", "POST", "PUT", "DELETE", "PATCH"
+    ],
+    allowed_headers=[
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "Accept",
+        "Accept-Encoding",
+        "Accept-Language",
+        "Connection",
+        "Host",
+        "Origin",
+        "Referer",
+        "User-Agent",
+    ],
     expose_headers=[
         "Content-Disposition",
         "Content-Type",

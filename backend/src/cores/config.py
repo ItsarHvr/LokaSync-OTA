@@ -18,20 +18,34 @@ class Environment(BaseSettings):
     API_DESCRIPTION: str = getenv("API_DESCRIPTION", "LokaSync REST API for updating ESP firmware devices via Over-The-Air")
 
     # MongoDB settings
-    MONGO_DATABASE_NAME: str = getenv("MONGO_DATABASE_NAME", "example_db")
-    MONGO_CONNECTION_URL: str = getenv("MONGO_CONNECTION_URL", "mongodb://localhost:27017/")
+    MONGO_USERNAME: str = getenv("MONGO_USERNAME", "mongo_admin")
+    MONGO_PASSWORD: str = getenv("MONGO_PASSWORD", "mongo_password")
+    # Reference to the mongodb service name in docker-compose
+    MONGO_HOST: str = getenv("MONGO_HOST", "mongodb")
+
+    ### Uncomment the following lines if you want to use MongoDB in host machine
+    # MONGO_HOST: str = getenv("MONGO_HOST", "localhost")
+    # MONGO_PORT: int = int(getenv("MONGO_PORT", 27017))
+
+    MONGO_DATABASE_NAME: str = getenv("MONGO_DATABASE_NAME", "app_db")
+
+    # Construct the MongoDB connection URL
+    if MONGO_USERNAME and MONGO_PASSWORD:
+        MONGO_CONNECTION_URL: str = f"mongodb://{MONGO_USERNAME}:{MONGO_PASSWORD}@{MONGO_HOST}/{MONGO_DATABASE_NAME}?authSource=admin&retryWrites=true&w=majority"
+    else:
+        MONGO_CONNECTION_URL: str = f"mongodb://{MONGO_HOST}/{MONGO_DATABASE_NAME}?retryWrites=true&w=majority"
 
     # MQTT settings
-    MQTT_BROKER_URL: str = getenv("MQTT_BROKER_URL", "mqtt://localhost:1883")
+    MQTT_BROKER_URL: str = getenv("MQTT_BROKER_URL", "broker.emqx.io")
+    MQTT_BROKER_PORT: int = int(getenv("MQTT_BROKER_PORT", 1883))
     MQTT_BROKER_VERSION: str = getenv("MQTT_BROKER_VERSION", "3.1.1")
     MQTT_BROKER_KEEPALIVE: int = int(getenv("MQTT_BROKER_KEEPALIVE", 60))
-    MQTT_BROKER_PORT: int = int(getenv("MQTT_BROKER_PORT", 1883))
     MQTT_BROKER_USERNAME: str = getenv("MQTT_BROKER_USERNAME", None)
     MQTT_BROKER_PASSWORD: str = getenv("MQTT_BROKER_PASSWORD", None)
-    MQTT_BROKER_CA_CERT_NAME: str = getenv("MQTT_BROKER_CA_CERT_NAME", "emqxsl-ca-example.crt")
-    MQTT_BROKER_TLS_ENABLED: bool = getenv("MQTT_BROKER_TLS_ENABLED", "false").lower() in ("true", "1", "Yes")
-    MQTT_SUBSCRIBE_TOPIC_LOG: str = getenv("MQTT_SUBSCRIBE_TOPIC_LOG", None)
-    MQTT_PUBLISH_TOPIC_LOG: str = getenv("MQTT_PUBLISH_TOPIC_LOG", None)
+    MQTT_BROKER_CA_CERT_NAME: str = getenv("MQTT_BROKER_CA_CERT_NAME", "emqxsl-ca.crt")
+    MQTT_BROKER_TLS_ENABLED: bool = bool(getenv("MQTT_BROKER_TLS_ENABLED", False).capitalize())
+    MQTT_SUBSCRIBE_TOPIC_LOG: str = getenv("MQTT_SUBSCRIBE_TOPIC_LOG", "OTAUpdate")
+    MQTT_PUBLISH_TOPIC_LOG: str = getenv("MQTT_PUBLISH_TOPIC_LOG", "DisplayLog")
     MQTT_CLIENT_ID: str = getenv("MQTT_CLIENT_ID", f"lokasync_backend_{randint(1000, 9999)}")
     MQTT_DEFAULT_QOS: int = int(getenv("MQTT_DEFAULT_QOS", 1))
 
@@ -42,13 +56,6 @@ class Environment(BaseSettings):
     GOOGLE_DRIVE_MAX_FILE_SIZE_MB: int = int(getenv("GOOGLE_DRIVE_MAX_FILE_SIZE_MB", 3))
     GOOGLE_DRIVE_CREDS_NAME: str = getenv("GOOGLE_DRIVE_CREDS_NAME", "gdrive-credentials.json")
     GOOGLE_DRIVE_FOLDER_ID: str = getenv("GOOGLE_DRIVE_FOLDER_ID", None)
-
-    # Middleware settings
-    MIDDLEWARE_CORS_ALLOWED_ORIGINS: List[str] = [
-        "http://localhost", # Standard web server
-        "http://localhost:3000", # React.js production server
-        "http://localhost:5173" # React.js development server
-    ]
 
     # Timezone settings
     TIMEZONE: str = getenv("TIMEZONE", "Asia/Jakarta")
