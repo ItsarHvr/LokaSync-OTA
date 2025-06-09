@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/
+logs/
+.vscode/
+.idea/
+.env.example
+package-lock.json
+.dockerignore
+Dockerfile
+.gitignore
+README.md

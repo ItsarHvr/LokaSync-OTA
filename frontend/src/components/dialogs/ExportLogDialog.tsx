@@ -254,8 +254,8 @@ export function ExportLogDialog({
                 <Checkbox
                   id="datetime"
                   checked={withDatetime}
-                  onCheckedChange={(checked) =>
-                    setWithDatetime(checked as boolean)
+                  onCheckedChange={(checked: boolean) =>
+                    setWithDatetime(checked)
                   }
                   disabled={isExporting}
                 />

@@ -1,17 +1,17 @@
 ########## STAGE 1 ##########
+# First stage: build the React application
 FROM node:22.16.0-alpine AS builder
 
 # Set the maintainer label
 LABEL author="LokaSync team"
 LABEL description="LokaSync frontend service"
-LABEL version="1.0.0"
+LABEL version="1.0.3"
 
 # Set environment variables
-ENV APP_DIR="/home/lokasync/frontend"
+ENV APP_DIR="/lokasync"
 ENV APP_PORT="3000"
 ENV LOCAL_USER="lokasync-frontend"
 ENV LOCAL_GROUP="lokasync-group"
-ENV NODE_ENV="production"
 
 # Create a non-root user and group
 RUN addgroup -S $LOCAL_GROUP && \
@@ -26,21 +26,18 @@ RUN mkdir -p $APP_DIR && \
 WORKDIR $APP_DIR
 
 # Copy the package-lock.json and install dependencies
-COPY package*.json ./
-RUN npm ci --only=production --silent
+COPY package.json ./
+RUN npm i --silent
 
 # Copy the application code
-COPY . .
-
-# Type check and linting
-RUN npm run type-check
-RUN npm run lint:fix
+COPY ./ ./
 
 # Build the application for production
-RUN npm run build:prod
+RUN npm i -g npm@latest typescript && npm run build:prod
 
 # Verify the build output (dist folder)
-RUN ls -la $APP_DIR/dist
+RUN ls -lah $APP_DIR/dist && \
+  echo "Build completed successfully."
 
 # Copy the built files to a specific directory
 RUN mkdir -p /dist && \
@@ -49,9 +46,23 @@ RUN mkdir -p /dist && \
   cp -r $APP_DIR/dist/* /dist/
 
 ########## STAGE 2 ##########
-# Final stage - just the built files
-FROM scratch AS dist
+# Final stage: use Nginx to serve the React built application
+FROM nginx:stable-alpine
 
-# Copy the built files from the builder stage
-RUN mkdir -p /dist
-COPY --from=builder /dist /dist
+# Set working directory to Nginx HTML directory
+WORKDIR /usr/share/nginx/html
+
+# Remove default Nginx static web files
+RUN rm -rf ./*
+
+# Copy custom configuration file
+COPY ./nginx/nginx.conf /etc/nginx/nginx.conf
+
+# Copy the built files to the Nginx HTML directory
+COPY --from=builder /dist ./
+
+# Expose the Nginx port
+EXPOSE 3000
+
+# Start Nginx
+CMD ["nginx", "-g", "daemon off;"]
