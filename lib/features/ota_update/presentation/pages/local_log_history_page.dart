@@ -4,7 +4,7 @@ import 'package:lokasync/utils/ota_log_storage.dart';
 import 'package:lokasync/utils/mqtt_service.dart';
 import 'dart:convert';
 import 'package:typed_data/typed_data.dart'; // For Uint8Buffer
-import 'package:mqtt_client/mqtt_client.dart'; // For MqttQos
+import 'package:mqtt5_client/mqtt5_client.dart'; // For MqttQos
 
 class OTALogHistoryPage extends StatefulWidget {
   const OTALogHistoryPage({super.key});
@@ -411,7 +411,7 @@ class _OTALogHistoryPageState extends State<OTALogHistoryPage> {
             ),
           ],
         ),
-        content: Container(
+        content: SizedBox(
           width: double.maxFinite,
           child: SingleChildScrollView(
             child: Container(

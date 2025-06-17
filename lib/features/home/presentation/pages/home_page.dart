@@ -1,7 +1,13 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:lokasync/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:lokasync/presentation/widgets/bottom_navbar.dart';
+import 'package:mqtt5_client/mqtt5_client.dart';
+import 'package:lokasync/utils/mqtt_service.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:typed_data/typed_data.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -11,239 +17,741 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
-  final AuthController _authController = AuthController();
+  // Firmware version control state
+  List<Map<String, dynamic>> _nodes = [];
+  bool _loadingNodes = false;
+  int _nodePage = 1;
+  int _nodePageSize = 10;
+  int _nodeTotal = 0;
+
+  // OTA log state
+  List<Map<String, dynamic>> _logs = [];
+  bool _loadingLogs = false;
+  int _logPage = 1;
+  int _logPageSize = 10;
+  int _logTotal = 0;
+
   int currentIndex = 0;
-  String _filterActive = 'all';
-  bool _isLoading = false;
-  bool _isInitialized = false;
-  String? _errorMessage;
-  
-  // Data statistik (nantinya akan diambil dari API)
-  final Map<String, int> _statistics = {
-    'total': 156,
-    'success': 132,
-    'failed': 24,
-  };
-  
-  // Data aktivitas (nantinya akan diambil dari API)
-  List<Map<String, dynamic>> _activities = [];
-  
+  String? _idToken;
+  String _activeTab = 'version_control';
+
+  // Version selection and firmware URL cache
+  final Map<String, List<String>> _nodeVersions = {};
+  final Map<String, String> _selectedVersion = {};
+  final Map<String, String> _firmwareUrls = {};
+
   @override
   void initState() {
     super.initState();
-    // Use a microtask to ensure the widget is fully mounted before loading data
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initializeHomeData();
+    _getIdTokenAndFetch();
+  }
+
+  Future<void> _getIdTokenAndFetch() async {
+    setState(() {
+      _loadingNodes = true;
+      _loadingLogs = true;
     });
-  }
-  
-  // Initialize all home data with error handling
-  Future<void> _initializeHomeData() async {
     try {
-      if (!mounted) return;
-      
+      final user = FirebaseAuth.instance.currentUser;
+      final token = await user?.getIdToken();
       setState(() {
-        _isLoading = true;
-        _errorMessage = null;
+        _idToken = token;
       });
-      
-      // Check if the user is authenticated
-      final user = _authController.getCurrentUser();
-      if (user == null) {
-        // Handle case where user is not properly authenticated
-        setState(() {
-          _errorMessage = "User authentication issue. Please login again.";
-          _isLoading = false;
-        });
-        
-        // Navigate back to login after a brief delay
-        Future.delayed(const Duration(seconds: 2), () {
-          if (mounted) {
-            Navigator.of(context).pushReplacementNamed('/login');
-          }
-        });
-        return;
-      }
-      
-      // Load activities once we confirm user is authenticated
-      await _loadActivities('all');
-      
-      if (mounted) {
-        setState(() {
-          _isInitialized = true;
-          _isLoading = false;
-        });
-      }
+      await Future.wait([_fetchNodes(), _fetchLogs()]);
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = "Failed to load data: ${e.toString()}";
-          _isLoading = false;
-        });
-      }
+      setState(() {
+        _loadingNodes = false;
+        _loadingLogs = false;
+      });
     }
   }
-  
-  // Method untuk memuat aktivitas berdasarkan filter
-  Future<void> _loadActivities(String filter) async {
-    try {
-      if (!mounted) return;
-      
+
+  Future<void> _fetchNodes() async {
+    if (_idToken == null) return;
+    setState(() => _loadingNodes = true);
+    final uri = Uri.https('lokasync.tech', '/api/v1/node/', {
+      'page': _nodePage.toString(),
+      'page_size': _nodePageSize.toString(),
+    });
+    final res = await http.get(
+      uri,
+      headers: {'Authorization': 'Bearer $_idToken'},
+    );
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body);
+      final nodes = List<Map<String, dynamic>>.from(data['data'] ?? []);
+      _nodes = nodes;
+      _nodeTotal = data['total_data'] ?? nodes.length;
+      // Fetch all versions for all nodes and wait for all to complete
+      await Future.wait(nodes.map((node) async {
+        final codename = node['node_codename'];
+        if (codename != null && !_nodeVersions.containsKey(codename)) {
+          await _fetchNodeVersions(codename);
+        }
+      }));
       setState(() {
-        _isLoading = true;
-        _filterActive = filter;
+        _loadingNodes = false;
       });
-      
-      // Simulasi loading dari API
-      await Future.delayed(const Duration(seconds: 1));
-      
-      // Contoh data dummy (nantinya akan diganti dengan request ke API)
-      List<Map<String, dynamic>> dummyData = [];
-      
-      if (filter == 'all' || filter == 'success') {
-        dummyData.addAll([
-          {
-            'id': '001',
-            'title': 'Monitoring Suhu',
-            'timestamp': DateTime.now().subtract(const Duration(hours: 2)),
-            'status': 'success',
-            'value': '28°C',
-          },
-          {
-            'id': '002',
-            'title': 'Monitoring Kelembaban',
-            'timestamp': DateTime.now().subtract(const Duration(hours: 4)),
-            'status': 'success',
-            'value': '75%',
-          },
-        ]);
-      }
-      
-      if (filter == 'all' || filter == 'failed') {
-        dummyData.addAll([
-          {
-            'id': '003',
-            'title': 'Monitoring pH Tanah',
-            'timestamp': DateTime.now().subtract(const Duration(hours: 6)),
-            'status': 'failed',
-            'errorMsg': 'Sensor tidak terhubung',
-          },
-        ]);
-      }
-      
-      if (!mounted) return;
-      
-      setState(() {
-        _activities = dummyData;
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = "Failed to load activities: ${e.toString()}";
-          _isLoading = false;
-        });
-      }
+    } else {
+      setState(() => _loadingNodes = false);
     }
   }
-  
-  // Mendapatkan nama depan pengguna
+
+  Future<void> _fetchLogs() async {
+    if (_idToken == null) return;
+    setState(() => _loadingLogs = true);
+    final uri = Uri.https('lokasync.tech', '/api/v1/log/', {
+      'page': _logPage.toString(),
+      'page_size': _logPageSize.toString(),
+    });
+    final res = await http.get(
+      uri,
+      headers: {'Authorization': 'Bearer $_idToken'},
+    );
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body);
+      setState(() {
+        _logs = List<Map<String, dynamic>>.from(data['data'] ?? []);
+        _logTotal = data['total_data'] ?? _logs.length;
+        _loadingLogs = false;
+      });
+    } else {
+      setState(() => _loadingLogs = false);
+    }
+  }
+
+  // Fetch all versions for a node
+  Future<void> _fetchNodeVersions(String nodeCodename) async {
+    if (_nodeVersions.containsKey(nodeCodename)) return;
+    final uri = Uri.https('lokasync.tech', '/api/v1/node/version/$nodeCodename');
+    final res = await http.get(uri, headers: {'Authorization': 'Bearer $_idToken'});
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body);
+      final versions = List<String>.from(data['data'] ?? []);
+      setState(() {
+        _nodeVersions[nodeCodename] = versions;
+        // Default to latest version if available
+        if (versions.isNotEmpty) {
+          _selectedVersion[nodeCodename] = versions.first;
+        }
+      });
+    }
+  }
+
+  // Fetch firmware detail for a node/version
+  Future<void> _fetchFirmwareDetail(String nodeCodename, String version) async {
+    if (version.isEmpty) return;
+    final uri = Uri.https('lokasync.tech', '/api/v1/node/detail/$nodeCodename', {'firmware_version': version});
+    final res = await http.get(uri, headers: {'Authorization': 'Bearer $_idToken'});
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body);
+      setState(() {
+        _firmwareUrls['$nodeCodename|$version'] = data['data']?['firmware_url'] ?? '';
+      });
+    }
+  }
+
+  // Download firmware file using direct link and url_launcher
+  Future<void> _downloadFirmware(String nodeCodename, String version) async {
+    if (version.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No version selected')),
+      );
+      return;
+    }
+    // Get firmware detail to obtain the direct download URL
+    final uri = Uri.https('lokasync.tech', '/api/v1/node/detail/$nodeCodename', {
+      'firmware_version': version,
+    });
+    final res = await http.get(uri, headers: {'Authorization': 'Bearer $_idToken'});
+    
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body);
+      final url = data['data']?['firmware_url'];
+      if (url != null && url is String && url.isNotEmpty) {
+        // Open the direct download link in the browser
+        await launchUrl(Uri.parse(url));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Firmware URL not found')),
+        );
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to get firmware URL')),
+      );
+    }
+  }
+
+  // Publish MQTT payload for OTA update
+  Future<void> _publishOtaPayload(String nodeCodename, String version) async {
+    await _fetchFirmwareDetail(nodeCodename, version);
+    final url = _firmwareUrls['$nodeCodename|$version'];
+    if (url == null || url.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Firmware URL not found')));
+      return;
+    }
+    final payload = {
+      "node_codename": nodeCodename,
+      "firmware_url": url,
+      "firmware_version": version,
+      "session_id": _generateSessionId(),
+    };
+    try {
+      final buffer = Uint8Buffer()..addAll(utf8.encode(jsonEncode(payload)));
+      MQTTService().client.publishMessage(
+        'LokaSync/CloudOTA/FirmwareUpdate',
+        MqttQos.atLeastOnce,
+        buffer,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('OTA payload published via MQTT!')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('MQTT publish failed: $e')));
+    }
+  }
+
+  String _generateSessionId() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    String rand() {
+      final r = List.generate(5, (_) => chars[(DateTime.now().millisecondsSinceEpoch + _randomInt()) % chars.length]).join();
+      final n = List.generate(5, (_) => (_randomInt() % 10).toString()).join();
+      return r + n;
+    }
+    return rand();
+  }
+
+  int _randomInt() => DateTime.now().microsecondsSinceEpoch % 100;
+
+  void _onItemTapped(int index) {
+    if (index == currentIndex) return;
+    if (index == 1) {
+      Navigator.pushReplacementNamed(context, '/monitoring');
+    } else if (index == 2) {
+      Navigator.pushReplacementNamed(context, '/profile');
+    } else if (index == 3) {
+      Navigator.pushReplacementNamed(context, '/local-update');
+    }
+  }
+
   String _getFirstName() {
-    final user = _authController.getCurrentUser();
-    if (user != null && user.fullName.isNotEmpty) {
-      return user.fullName.split(' ')[0]; // Ambil nama depan saja
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null && user.displayName != null && user.displayName!.isNotEmpty) {
+      return user.displayName!.split(' ')[0];
     }
     return 'User';
   }
-  
-void _onItemTapped(int index) {
-  if (index == currentIndex) return;
 
-  if (index == 1) {
-    Navigator.pushReplacementNamed(context, '/monitoring');
-  } else if (index == 2) {
-    Navigator.pushReplacementNamed(context, '/profile');
-  } else if (index == 3) {
-    Navigator.pushReplacementNamed(context, '/local-update');
-  }
-}
-  
-  @override
-  Widget build(BuildContext context) {
-    // If there's an error, show error state
-    if (_errorMessage != null) {
-      return Scaffold(
-        backgroundColor: const Color(0xFFF5F7F9),
-        body: Center(
+  Widget _buildStatCard(String title, int value, IconData icon, Color color) {
+  return GestureDetector(
+    onTap: () {
+      if (title.contains('Version Control')) {
+        setState(() => _activeTab = 'version_control');
+      } else if (title.contains('Update Log')) {
+        setState(() => _activeTab = 'ota_logs');
+      }
+    },
+    child: Container(
+      width: 150,
+      height: 120,
+      margin: const EdgeInsets.only(right: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            color,
+            color.withOpacity(0.7),
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.3),
+            spreadRadius: 1,
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
-                Icons.error_outline,
-                color: Colors.red,
-                size: 60,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Error',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+              Icon(
+                icon,
+                color: Colors.white,
+                size: 28,
               ),
               const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                child: Text(
-                  _errorMessage!,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 16,
+              Text(
+                value.toString(),
+                style: GoogleFonts.poppins(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                title,
+                style: GoogleFonts.poppins(
+                  fontSize: 10,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVersionControlContent() {
+  if (_loadingNodes) {
+    return const Center(
+      child: CircularProgressIndicator(
+        color: Color(0xFF014331),
+      ),
+    );
+  }
+
+  return Column(
+    children: [
+      Expanded(
+        child: ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: _nodes.length,
+          itemBuilder: (context, index) {
+            final node = _nodes[index];
+            return _buildNodeCard(node);
+          },
+        ),
+      ),
+      // Pagination stays at the bottom of the container
+      Container(
+        color: Colors.white,
+        child: _buildPagination(
+          page: _nodePage,
+          pageSize: _nodePageSize,
+          total: _nodeTotal,
+          onPageChange: (p) {
+            setState(() => _nodePage = p);
+            _fetchNodes();
+          },
+          onPageSizeChange: (s) {
+            setState(() => _nodePageSize = s);
+            _fetchNodes();
+          },
+        ),
+      ),
+    ],
+  );
+}
+
+  Widget _buildOtaLogsContent() {
+    if (_loadingLogs) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: Color(0xFF014331),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: _logs.length,
+            itemBuilder: (context, index) {
+              final log = _logs[index];
+              return _buildLogCard(log);
+            },
+          ),
+        ),
+        Container(
+          color: Colors.white,
+          child: _buildPagination(
+            page: _logPage,
+            pageSize: _logPageSize,
+            total: _logTotal,
+            onPageChange: (p) {
+              setState(() => _logPage = p);
+              _fetchLogs();
+            },
+            onPageSizeChange: (s) {
+              setState(() => _logPageSize = s);
+              _fetchLogs();
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNodeCard(Map<String, dynamic> node) {
+    final nodeCodename = node['node_codename'] ?? '';
+    final versions = _nodeVersions[nodeCodename] ?? [];
+    final items = versions.isNotEmpty
+        ? versions
+        : [node['firmware_version']?.toString() ?? '-'];
+    final selectedVersion = _selectedVersion[nodeCodename] ?? 
+        (versions.isNotEmpty ? versions.first : null);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.shade200,
+            spreadRadius: 1,
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF014331).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.developer_board,
+                    color: Color(0xFF014331),
+                    size: 24,
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    _errorMessage = null;
-                  });
-                  _initializeHomeData();
-                },
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    
-    // If still loading and not initialized, show a proper loading screen
-    if (_isLoading && !_isInitialized) {
-      return Scaffold(
-        backgroundColor: const Color(0xFFF5F7F9),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const CircularProgressIndicator(
-                color: Color(0xFF014331),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'Loading LokaSync data...',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey.shade700,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        node['node_location']?.toString() ?? 'Unknown Location',
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF014331),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${node['node_type']?.toString() ?? '-'} • ID: ${node['node_id']?.toString() ?? '-'}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              node['description']?.toString() ?? 'No description available',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: Colors.black87,
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Firmware Version',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: DropdownButton<String>(
+                          value: selectedVersion,
+                          isExpanded: true,
+                          underline: Container(),
+                          items: items
+                              .where((v) => v.isNotEmpty && v != '-')
+                              .map((v) => DropdownMenuItem(
+                                    value: v,
+                                    child: Text(
+                                      v,
+                                      style: GoogleFonts.poppins(fontSize: 12),
+                                    ),
+                                  ))
+                              .toList(),
+                          onChanged: (v) {
+                            if (v == null) return;
+                            setState(() {
+                              _selectedVersion[nodeCodename] = v;
+                            });
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Column(
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () => _publishOtaPayload(
+                        nodeCodename,
+                        _selectedVersion[nodeCodename] ?? node['firmware_version'] ?? '',
+                      ),
+                      icon: const Icon(Icons.cloud_upload, size: 16),
+                      label: Text(
+                        'Upload OTA',
+                        style: GoogleFonts.poppins(fontSize: 12),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF014331),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: () => _downloadFirmware(
+                        nodeCodename,
+                        _selectedVersion[nodeCodename] ?? node['firmware_version'] ?? '',
+                      ),
+                      icon: const Icon(Icons.download, size: 16),
+                      label: Text(
+                        'Download',
+                        style: GoogleFonts.poppins(fontSize: 12),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF014331),
+                        side: const BorderSide(color: Color(0xFF014331)),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Last Updated: ${_formatDate(node['latest_updated'])}',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: Colors.grey.shade500,
+              ),
+            ),
+          ],
         ),
-      );
-    }
-    
-    // Regular home screen UI once initialized
+      ),
+    );
+  }
+
+  Widget _buildLogCard(Map<String, dynamic> log) {
+    final bool isSuccess = log['flash_status']?.toString().toLowerCase() == 'success';
+    final Color statusColor = isSuccess ? Colors.green : Colors.red;
+    final IconData statusIcon = isSuccess ? Icons.check_circle : Icons.error;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.shade200,
+            spreadRadius: 1,
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: statusColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                statusIcon,
+                color: statusColor,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    log['node_codename']?.toString() ?? 'Unknown Node',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF014331),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'MAC: ${log['node_mac']?.toString() ?? '-'}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Text(
+                        'Version: ${log['firmware_version']?.toString() ?? '-'}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 10,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Text(
+                        'Size: ${log['firmware_size_kb'] ?? '-'} KB',
+                        style: GoogleFonts.poppins(
+                          fontSize: 10,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      log['flash_status']?.toString() ?? 'Unknown',
+                      style: GoogleFonts.poppins(
+                        fontSize: 10,
+                        color: statusColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPagination({
+    required int page,
+    required int pageSize,
+    required int total,
+    required void Function(int) onPageChange,
+    required void Function(int) onPageSizeChange,
+  }) {
+    final totalPages = (total / pageSize).ceil();
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Colors.grey.shade200)),
+      ),
+      child: Row(
+        children: [
+          Text(
+            'Page $page of $totalPages',
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              color: Colors.grey.shade700,
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.chevron_left),
+            onPressed: page > 1 ? () => onPageChange(page - 1) : null,
+            color: const Color(0xFF014331),
+          ),
+          IconButton(
+            icon: const Icon(Icons.chevron_right),
+            onPressed: page < totalPages ? () => onPageChange(page + 1) : null,
+            color: const Color(0xFF014331),
+          ),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: DropdownButton<int>(
+              value: pageSize,
+              underline: Container(),
+              items: [10, 25, 50, 100]
+                  .map((s) => DropdownMenuItem(
+                        value: s,
+                        child: Text(
+                          '$s',
+                          style: GoogleFonts.poppins(fontSize: 14),
+                        ),
+                      ))
+                  .toList(),
+              onChanged: (s) => onPageSizeChange(s!),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(dynamic date) {
+    if (date == null) return '-';
+    final dt = DateTime.tryParse(date.toString());
+    if (dt == null) return '-';
+    return '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7F9),
       body: SafeArea(
@@ -264,13 +772,13 @@ void _onItemTapped(int index) {
                         style: GoogleFonts.poppins(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF014331),
+                          color: const Color(0xFF014331),
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Selamat datang di LokaSync',
-                        style: GoogleFonts.roboto(
+                        'Manage your IoT OTA updates',
+                        style: GoogleFonts.poppins(
                           fontSize: 14,
                           color: Colors.grey,
                         ),
@@ -279,13 +787,12 @@ void _onItemTapped(int index) {
                   ),
                   GestureDetector(
                     onTap: () {
-                      // Navigate to profile using named route for consistency
                       Navigator.pushReplacementNamed(context, '/profile');
                     },
                     child: CircleAvatar(
                       backgroundColor: const Color(0xFF014331),
                       radius: 24,
-                      child: Icon(
+                      child: const Icon(
                         Icons.person,
                         color: Colors.white,
                         size: 28,
@@ -295,72 +802,28 @@ void _onItemTapped(int index) {
                 ],
               ),
             ),
-            
-            // Statistics cards
+
+            // Tab selector cards
             SizedBox(
-              height: 150,
+              height: 130,
               child: ListView(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 children: [
-                  _buildStatCard('Total Activities', _statistics['total']!, Icons.analytics_outlined, Colors.blue),
-                  _buildStatCard('Success', _statistics['success']!, Icons.check_circle_outline, Colors.green),
-                  _buildStatCard('Failed', _statistics['failed']!, Icons.error_outline, Colors.red),
+                  _buildStatCard('Cloud-OTA Version Control', _nodeTotal, Icons.cloud_sync, const Color(0xFF014331)),
+                  _buildStatCard('Cloud-OTA Update Log', _logTotal, Icons.history, const Color(0xFF1976D2)),
+                  _buildStatCard('Local-OTA Update Log', 0, Icons.smartphone, const Color(0xFFBF04)),
                 ],
               ),
             ),
-            
-            // Filter buttons
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-              child: Row(
-                children: [
-                  _buildFilterButton('All Activities', 'all'),
-                  const SizedBox(width: 10),
-                  _buildFilterButton('Success', 'success'),
-                  const SizedBox(width: 10),
-                  _buildFilterButton('Failed', 'failed'),
-                ],
-              ),
-            ),
-            
-            // Activities content
+
+            const SizedBox(height: 16),
+
+            // Content based on active tab
             Expanded(
-              child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        color: Color(0xFF014331),
-                      ),
-                    )
-                  : _activities.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.hourglass_empty,
-                                size: 50,
-                                color: Colors.grey.shade400,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Tidak ada aktivitas $_filterActive',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.grey.shade600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          itemCount: _activities.length,
-                          itemBuilder: (context, index) {
-                            final activity = _activities[index];
-                            return _buildActivityCard(activity);
-                          },
-                        ),
+              child: _activeTab == 'version_control'
+                  ? _buildVersionControlContent()
+                  : _buildOtaLogsContent(),
             ),
           ],
         ),
@@ -370,205 +833,5 @@ void _onItemTapped(int index) {
         onTap: _onItemTapped,
       ),
     );
-  }
-  
-  // Card untuk statistik dengan gradient warna
-  Widget _buildStatCard(String title, int value, IconData icon, Color color) {
-    // Tentukan gradient warna berdasarkan jenis kartu
-    Gradient gradient;
-    Color shadowColor;
-    
-    if (title.contains('Total')) {
-      // Gradient biru untuk total activities
-      gradient = const LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [Color(0xFF2196F3), Color(0xFF4FC3F7)],
-      );
-      shadowColor = const Color.fromRGBO(33, 150, 243, 0.3); // Warna biru dengan opacity 0.3
-    } else if (title.contains('Success')) {
-      // Gradient hijau untuk success
-      gradient = const LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [Color(0xFF2E7D32), Color(0xFF66BB6A)],
-      );
-      shadowColor = const Color.fromRGBO(46, 125, 50, 0.3); // Warna hijau dengan opacity 0.3
-    } else {
-      // Gradient merah untuk failed
-      gradient = const LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [Color(0xFFB71C1C), Color(0xFFE57373)],
-      );
-      shadowColor = const Color.fromRGBO(183, 28, 28, 0.3); // Warna merah dengan opacity 0.3
-    }
-    
-    return Container(
-      width: 150,
-      margin: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: gradient,
-        boxShadow: [
-          BoxShadow(
-            // Menggunakan warna shadow yang sudah ditentukan
-            color: shadowColor,
-            spreadRadius: 1,
-            blurRadius: 6,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              color: Colors.white,
-              size: 32,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              value.toString(),
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 12,
-                color: Colors.white,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-  
-  // Button untuk filter aktivitas - lebih kecil dan lebih rounded
-  Widget _buildFilterButton(String title, String filterValue) {
-    final isActive = _filterActive == filterValue;
-    return Expanded(
-      child: ElevatedButton(
-        onPressed: () {
-          if (!isActive) {
-            _loadActivities(filterValue);
-          }
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: isActive ? const Color(0xFF014331) : Colors.white,
-          foregroundColor: isActive ? Colors.white : Colors.grey,
-          elevation: isActive ? 2 : 0,
-          padding: const EdgeInsets.symmetric(vertical: 8), // Lebih kecil vertically
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20), // Lebih rounded (oval)
-            side: BorderSide(
-              color: isActive ? Colors.transparent : Colors.grey.shade300,
-            ),
-          ),
-          textStyle: const TextStyle(
-            fontSize: 11, // Font size lebih kecil
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        child: Text(title),
-      ),
-    );
-  }
-  
-  // Card untuk aktivitas dengan latar belakang putih polos
-  Widget _buildActivityCard(Map<String, dynamic> activity) {
-    final bool isSuccess = activity['status'] == 'success';
-    final Color statusColor = isSuccess ? Colors.green : Colors.red;
-    final IconData statusIcon = isSuccess ? Icons.check_circle : Icons.error;
-    
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white, // Background putih polos
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            // Mengganti withOpacity dengan warna yang memiliki alpha
-            color: Colors.grey.shade200,
-            spreadRadius: 1,
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                // Ganti withOpacity dengan Color yang memiliki alpha yang tepat
-                color: isSuccess
-                    ? Color.fromRGBO(0, 128, 0, 0.1) // Green dengan alpha 0.1
-                    : Color.fromRGBO(255, 0, 0, 0.1), // Red dengan alpha 0.1
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                statusIcon,
-                color: statusColor,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    activity['title'],
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF014331),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    isSuccess
-                        ? 'Value: ${activity['value']}'
-                        : 'Error: ${activity['errorMsg']}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: isSuccess ? Colors.black54 : statusColor,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _formatDateTime(activity['timestamp']),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-  
-  // Helper untuk format tanggal
-  String _formatDateTime(DateTime dateTime) {
-    return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
 }

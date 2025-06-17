@@ -19,10 +19,10 @@ void main() async {
   );
 
   MQTTService().init(
-  server: "u238ef8d.ala.asia-southeast1.emqxsl.com",
+  server: "l55488bc.ala.asia-southeast1.emqxsl.com",
   port: 8883,
   topic: 'LokaSync/CloudSensor/Monitoring',
-  clientId: 'android_locasync_${DateTime.now().millisecondsSinceEpoch}',
+  clientId: 'mobile_${DateTime.now().millisecondsSinceEpoch % 10000}',
   username: "lokasync",
   password: "LokaSync!2345",
     onSensorData: (data) {

@@ -11,7 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:lokasync/presentation/widgets/bottom_navbar.dart';
 import 'package:lokasync/utils/mqtt_service.dart';
 import 'package:typed_data/typed_data.dart'; // For Uint8Buffer
-import 'package:mqtt_client/mqtt_client.dart'; // For MqttQos
+import 'package:mqtt5_client/mqtt5_client.dart'; // For MqttQos
 
 class OTALogEntry {
   final DateTime timestamp;
@@ -78,7 +78,6 @@ class _OTAUpdatePageState extends State<OTAUpdatePage> {
   bool _isUploading = false;
   double _progress = 0.0;
   int? _firmwareSize;
-  double? _uploadSpeed;
   double? _uploadTime;
   final _ipController = TextEditingController(text: "192.168.19.63");
   final _pwController = TextEditingController();
@@ -88,7 +87,6 @@ class _OTAUpdatePageState extends State<OTAUpdatePage> {
       _log = '';
       _progress = 0.0;
       _firmwareSize = null;
-      _uploadSpeed = null;
       _uploadTime = null;
     });
 
@@ -174,7 +172,6 @@ class _OTAUpdatePageState extends State<OTAUpdatePage> {
       setState(() {
         _isUploading = false;
         _uploadTime = stopwatch.elapsedMilliseconds / 1000.0;
-        _uploadSpeed = total / 1024.0 / (_uploadTime ?? 1);
         _log = "OTA Update Complete!\n\n"
             "Firmware Size (KBs)  : ${(_firmwareSize! / 1024).toStringAsFixed(2)} KB\n"
             "Firmware Size (Bytes): ${(_firmwareSize!).toStringAsFixed(2)} Bytes\n"

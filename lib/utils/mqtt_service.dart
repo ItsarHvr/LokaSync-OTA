@@ -1,8 +1,6 @@
 import 'dart:convert';
-import 'dart:io';
-import 'package:flutter/services.dart'; // <-- Add this import
-import 'package:mqtt_client/mqtt_client.dart';
-import 'package:mqtt_client/mqtt_server_client.dart';
+import 'package:mqtt5_client/mqtt5_client.dart';
+import 'package:mqtt5_client/mqtt5_server_client.dart';
 
 typedef OnSensorData = void Function(Map<String, dynamic> data);
 
@@ -46,23 +44,22 @@ class MQTTService {
     client.keepAlivePeriod = 20;
     client.onDisconnected = onDisconnected;
     client.onConnected = onConnected;
-    client.onSubscribed = onSubscribed;
+    client.onSubscribed = (subscription) => onSubscribed(subscription.topic.rawTopic ?? '');
 
-    final context = SecurityContext.defaultContext;
-    // Load the CA certificate from assets
-    final caBytes = await rootBundle.load('assets/ca.crt');
-    context.setTrustedCertificatesBytes(caBytes.buffer.asUint8List());
-    client.securityContext = context;
-
+    //final context = SecurityContext.defaultContext;
+    // Load the CA certificate from assets (optional, only if needed)
+    //final caBytes = await rootBundle.load('assets/ca.crt');
+    //context.setTrustedCertificatesBytes(caBytes.buffer.asUint8List());
+    //client.securityContext = context;
     final connMess = MqttConnectMessage()
+        .authenticateAs(username ?? '', password ?? '')
         .withClientIdentifier(clientId)
-        .startClean()
-        .withWillQos(MqttQos.atLeastOnce);
+        .startClean();
 
     client.connectionMessage = connMess;
 
     try {
-      await client.connect(username, password);
+      await client.connect();
     } catch (e) {
       client.disconnect();
       rethrow;
@@ -70,9 +67,11 @@ class MQTTService {
 
     client.subscribe(topic, MqttQos.atLeastOnce);
 
-    client.updates?.listen((List<MqttReceivedMessage<MqttMessage?>>? c) {
-      final recMess = c![0].payload as MqttPublishMessage;
-      final pt = MqttPublishPayload.bytesToStringAsString(recMess.payload.message);
+    client.updates.listen((List<MqttReceivedMessage<MqttMessage>> c) {
+      final recMess = c[0].payload as MqttPublishMessage;
+      final pt = recMess.payload.message != null
+    ? MqttPublishPayload.bytesToStringAsString(recMess.payload.message!)
+    : '';
 
       try {
         final data = jsonDecode(pt) as Map<String, dynamic>;
