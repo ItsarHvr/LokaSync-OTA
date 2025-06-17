@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use, use_build_context_synchronously
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -314,7 +316,7 @@ class _HomeState extends State<Home> {
     );
   }
 
-  Widget _buildVersionControlContent() {
+Widget _buildVersionControlContent() {
   if (_loadingNodes) {
     return const Center(
       child: CircularProgressIndicator(
@@ -323,61 +325,55 @@ class _HomeState extends State<Home> {
     );
   }
 
-  return Column(
-    children: [
-      Expanded(
-        child: ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: _nodes.length,
-          itemBuilder: (context, index) {
-            final node = _nodes[index];
-            return _buildNodeCard(node);
-          },
-        ),
-      ),
-      // Pagination stays at the bottom of the container
-      Container(
-        color: Colors.white,
-        child: _buildPagination(
-          page: _nodePage,
-          pageSize: _nodePageSize,
-          total: _nodeTotal,
-          onPageChange: (p) {
-            setState(() => _nodePage = p);
-            _fetchNodes();
-          },
-          onPageSizeChange: (s) {
-            setState(() => _nodePageSize = s);
-            _fetchNodes();
-          },
-        ),
-      ),
-    ],
+  // +1 for the pagination at the end
+  return ListView.builder(
+    padding: const EdgeInsets.all(16),
+    itemCount: _nodes.length + 1,
+    itemBuilder: (context, index) {
+      if (index < _nodes.length) {
+        final node = _nodes[index];
+        return _buildNodeCard(node);
+      } else {
+        // Pagination at the very end
+        return Container(
+          color: Colors.white,
+          child: _buildPagination(
+            page: _nodePage,
+            pageSize: _nodePageSize,
+            total: _nodeTotal,
+            onPageChange: (p) {
+              setState(() => _nodePage = p);
+              _fetchNodes();
+            },
+            onPageSizeChange: (s) {
+              setState(() => _nodePageSize = s);
+              _fetchNodes();
+            },
+          ),
+        );
+      }
+    },
   );
 }
 
   Widget _buildOtaLogsContent() {
-    if (_loadingLogs) {
-      return const Center(
-        child: CircularProgressIndicator(
-          color: Color(0xFF014331),
-        ),
-      );
-    }
+  if (_loadingLogs) {
+    return const Center(
+      child: CircularProgressIndicator(
+        color: Color(0xFF014331),
+      ),
+    );
+  }
 
-    return Column(
-      children: [
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: _logs.length,
-            itemBuilder: (context, index) {
-              final log = _logs[index];
-              return _buildLogCard(log);
-            },
-          ),
-        ),
-        Container(
+  return ListView.builder(
+    padding: const EdgeInsets.all(16),
+    itemCount: _logs.length + 1,
+    itemBuilder: (context, index) {
+      if (index < _logs.length) {
+        final log = _logs[index];
+        return _buildLogCard(log);
+      } else {
+        return Container(
           color: Colors.white,
           child: _buildPagination(
             page: _logPage,
@@ -392,10 +388,11 @@ class _HomeState extends State<Home> {
               _fetchLogs();
             },
           ),
-        ),
-      ],
-    );
-  }
+        );
+      }
+    },
+  );
+}
 
   Widget _buildNodeCard(Map<String, dynamic> node) {
     final nodeCodename = node['node_codename'] ?? '';
@@ -532,7 +529,7 @@ class _HomeState extends State<Home> {
                       icon: const Icon(Icons.cloud_upload, size: 16),
                       label: Text(
                         'Upload OTA',
-                        style: GoogleFonts.poppins(fontSize: 12),
+                        style: GoogleFonts.poppins(fontSize: 10),
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF014331),
@@ -583,7 +580,7 @@ class _HomeState extends State<Home> {
 
   Widget _buildLogCard(Map<String, dynamic> log) {
     final bool isSuccess = log['flash_status']?.toString().toLowerCase() == 'success';
-    final Color statusColor = isSuccess ? const Color.fromARGB(255, 0, 145, 5) : const Color.fromARGB(255, 181, 12, 0);
+    final Color statusColor = isSuccess ? const Color.fromARGB(255, 3, 68, 5) : const Color.fromARGB(255, 181, 12, 0);
     final IconData statusIcon = isSuccess ? Icons.check_circle : Icons.error;
 
     return Container(
@@ -684,64 +681,72 @@ class _HomeState extends State<Home> {
   }
 
   Widget _buildPagination({
-    required int page,
-    required int pageSize,
-    required int total,
-    required void Function(int) onPageChange,
-    required void Function(int) onPageSizeChange,
-  }) {
-    final totalPages = (total / pageSize).ceil();
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Colors.grey.shade200)),
-      ),
-      child: Row(
-        children: [
-          Text(
-            'Page $page of $totalPages',
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              color: Colors.grey.shade700,
-            ),
+  required int page,
+  required int pageSize,
+  required int total,
+  required void Function(int) onPageChange,
+  required void Function(int) onPageSizeChange,
+}) {
+  final totalPages = (total / pageSize).ceil();
+  return Container(
+    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      border: Border(top: BorderSide(color: Colors.grey.shade200)),
+      borderRadius: BorderRadius.circular(8),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.grey.shade100,
+          blurRadius: 4,
+          offset: const Offset(0, 2),
+        ),
+      ],
+    ),
+    child: Row(
+      children: [
+        Text(
+          'Page $page of $totalPages',
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            color: Colors.grey.shade700,
           ),
-          IconButton(
-            icon: const Icon(Icons.chevron_left),
-            onPressed: page > 1 ? () => onPageChange(page - 1) : null,
-            color: const Color(0xFF014331),
+        ),
+        IconButton(
+          icon: const Icon(Icons.chevron_left),
+          onPressed: page > 1 ? () => onPageChange(page - 1) : null,
+          color: const Color(0xFF014331),
+        ),
+        IconButton(
+          icon: const Icon(Icons.chevron_right),
+          onPressed: page < totalPages ? () => onPageChange(page + 1) : null,
+          color: const Color(0xFF014331),
+        ),
+        const Spacer(),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(12),
           ),
-          IconButton(
-            icon: const Icon(Icons.chevron_right),
-            onPressed: page < totalPages ? () => onPageChange(page + 1) : null,
-            color: const Color(0xFF014331),
+          child: DropdownButton<int>(
+            value: pageSize,
+            underline: Container(),
+            items: [10, 25, 50, 100]
+                .map((s) => DropdownMenuItem(
+                      value: s,
+                      child: Text(
+                        '$s',
+                        style: GoogleFonts.poppins(fontSize: 14),
+                      ),
+                    ))
+                .toList(),
+            onChanged: (s) => onPageSizeChange(s!),
           ),
-          const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade300),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: DropdownButton<int>(
-              value: pageSize,
-              underline: Container(),
-              items: [10, 25, 50, 100]
-                  .map((s) => DropdownMenuItem(
-                        value: s,
-                        child: Text(
-                          '$s',
-                          style: GoogleFonts.poppins(fontSize: 14),
-                        ),
-                      ))
-                  .toList(),
-              onChanged: (s) => onPageSizeChange(s!),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
 
   String _formatDate(dynamic date) {
     if (date == null) return '-';
@@ -812,7 +817,7 @@ class _HomeState extends State<Home> {
                 children: [
                   _buildStatCard('Cloud-OTA Version Control', _nodeTotal, Icons.cloud_sync, const Color(0xFF014331)),
                   _buildStatCard('Cloud-OTA Update Log', _logTotal, Icons.history, const Color(0xFF1976D2)),
-                 // _buildStatCard('Local-OTA Update Log', 0, Icons.smartphone, const Color(0x00FFC105)),
+                  _buildStatCard('Local-OTA Update Log', 0, Icons.smartphone, const Color(0x00FFC105)),
                 ],
               ),
             ),
