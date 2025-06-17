@@ -138,96 +138,90 @@ class _MonitoringState extends State<Monitoring> {
   SensorData? get _selectedSensor =>
       _selectedSensorId != null ? _selectedNode?.sensors[_selectedSensorId!] : null;
 
-  @override
-  Widget build(BuildContext context) {
-    final node = _selectedNode;
-    final sensors = node?.sensors.values.toList() ?? [];
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F9),
-      body: SafeArea(
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: Color(0xFF014331)))
-            : Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Header
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 16.0),
-                      child: Row(
-                        children: [
-                          InkWell(
-                            onTap: () => Navigator.pushReplacementNamed(context, '/home'),
-                            borderRadius: BorderRadius.circular(12),
-                            child: const Icon(Icons.arrow_back, color: Color(0xFF014331), size: 24),
-                          ),
-                          const SizedBox(width: 32),
-                          Text(
-                            'Monitoring Page',
-                            style: GoogleFonts.poppins(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF014331),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Node selector
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 16.0),
-                      child: _buildNodeDropdown(),
-                    ),
-                    // Sensor cards
-                    SizedBox(
-                      height: 110,
-                      child: sensors.isEmpty
-                          ? const Center(child: Text('Tidak ada sensor tersedia untuk node ini'))
-                          : ListView.builder(
-                              scrollDirection: Axis.horizontal,
-                              itemCount: sensors.length,
-                              itemBuilder: (context, index) {
-                                final sensor = sensors[index];
-                                return _buildSensorCard(sensor);
-                              },
-                            ),
-                    ),
-                    const SizedBox(height: 24),
-                    // Sensor visualization
-                    if (_selectedSensor != null)
-                      Expanded(
-                        child: SingleChildScrollView(
-                          physics: const BouncingScrollPhysics(),
-                          child: Padding(
-                            padding: const EdgeInsets.only(bottom: 16.0),
-                            child: _buildSensorVisualization(_selectedSensor!),
+@override
+Widget build(BuildContext context) {
+  final node = _selectedNode;
+  final sensors = node?.sensors.values.toList() ?? [];
+  return Scaffold(
+    backgroundColor: const Color(0xFFF5F7F9),
+    body: SafeArea(
+      child: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF014331)))
+          : Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header (no back arrow)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16.0),
+                    child: Row(
+                      children: [
+                        Text(
+                          'Monitoring Page',
+                          style: GoogleFonts.poppins(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF014331),
                           ),
                         ),
+                      ],
+                    ),
+                  ),
+                  // Node selector
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16.0),
+                    child: _buildNodeDropdown(),
+                  ),
+                  // Sensor cards
+                  SizedBox(
+                    height: 110,
+                    child: sensors.isEmpty
+                        ? const Center(child: Text('No node available'))
+                        : ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: sensors.length,
+                            itemBuilder: (context, index) {
+                              final sensor = sensors[index];
+                              return _buildSensorCard(sensor);
+                            },
+                          ),
+                  ),
+                  const SizedBox(height: 24),
+                  // Sensor visualization
+                  if (_selectedSensor != null)
+                    Expanded(
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 16.0),
+                          child: _buildSensorVisualization(_selectedSensor!),
+                        ),
                       ),
-                  ],
-                ),
+                    ),
+                ],
               ),
-      ),
-      bottomNavigationBar: BottomNavBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          if (index != _currentIndex) {
-            if (index == 0) {
-              Navigator.pushReplacementNamed(context, '/home');
-            } else if (index == 1) {
-              Navigator.pushReplacementNamed(context, '/monitoring');
-            } else if (index == 2) {
-              Navigator.pushReplacementNamed(context, '/profile');
-            } else if (index == 3) {
-              Navigator.pushReplacementNamed(context, '/local-update');
-            }
+            ),
+    ),
+    bottomNavigationBar: BottomNavBar(
+      currentIndex: _currentIndex,
+      onTap: (index) {
+        if (index != _currentIndex) {
+          if (index == 0) {
+            Navigator.pushReplacementNamed(context, '/home');
+          } else if (index == 1) {
+            Navigator.pushReplacementNamed(context, '/monitoring');
+          } else if (index == 2) {
+            Navigator.pushReplacementNamed(context, '/local-update');
+          } else if (index == 3) {
+            Navigator.pushReplacementNamed(context, '/profile');
           }
-        },
-      ),
-    );
-  }
+        }
+      },
+    ),
+  );
+}
 
 Widget _buildNodeDropdown() {
   // Group nodes by location and type
@@ -286,7 +280,7 @@ Widget _buildNodeDropdown() {
       children: [
         // Location Dropdown (Full width at top)
         Text(
-          'Lokasi Node',
+          'Node Location',
           style: GoogleFonts.poppins(
             fontSize: 12,
             fontWeight: FontWeight.w500,
@@ -308,7 +302,7 @@ Widget _buildNodeDropdown() {
               hint: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Text(
-                  'Pilih Lokasi',
+                  'Choose Location',
                   style: GoogleFonts.poppins(
                     color: Colors.grey.shade500,
                     fontSize: 14,
@@ -371,7 +365,7 @@ Widget _buildNodeDropdown() {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Tipe Node',
+                    'Node Type',
                     style: GoogleFonts.poppins(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
@@ -392,7 +386,7 @@ Widget _buildNodeDropdown() {
                         hint: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                           child: Text(
-                            'Tipe',
+                            'Type',
                             style: GoogleFonts.poppins(
                               color: Colors.grey.shade500,
                               fontSize: 13,

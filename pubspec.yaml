@@ -9,7 +9,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # Fix bugs:
 # - User profile icon not directing to profile page
 # - Null operator issue was caused by wrong implementation of elegant notification
-version: 1.0.0-alpha.2+2
+version: 1.3.0+1
 
 environment:
   sdk: ^3.7.2

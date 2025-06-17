@@ -239,26 +239,13 @@ void _openLogHistory() {
               ),
               child: Row(
                 children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF014331).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: IconButton(
-                      onPressed: () => Navigator.pushReplacementNamed(context, '/home'),
-                      icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF014331), size: 20),
-                      padding: const EdgeInsets.all(8),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
                   Expanded(
                     child: Text(
                       'Local-OTA Update',
                       style: GoogleFonts.poppins(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
                         color: const Color(0xFF014331),
-                        letterSpacing: -0.5,
                       ),
                     ),
                   ),
@@ -712,14 +699,14 @@ void _openLogHistory() {
         ),
       ),
       bottomNavigationBar: BottomNavBar(
-        currentIndex: 3, // 4th tab
+        currentIndex: 2, // 4th tab
         onTap: (index) {
-          if (index != 3) {
+          if (index != 2) {
             if (index == 0) {
               Navigator.pushReplacementNamed(context, '/home');
             } else if (index == 1) {
               Navigator.pushReplacementNamed(context, '/monitoring');
-            } else if (index == 2) {
+            } else if (index == 3) {
               Navigator.pushReplacementNamed(context, '/profile');
             }
           }

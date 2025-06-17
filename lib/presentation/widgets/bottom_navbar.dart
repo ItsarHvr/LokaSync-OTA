@@ -35,8 +35,8 @@ class BottomNavBar extends StatelessWidget {
           children: [
             _buildNavItem(0, Icons.home_outlined, Icons.home, 'Home'),
             _buildNavItem(1, Icons.monitor_heart_outlined, Icons.monitor_heart, 'Monitoring'),
-            _buildNavItem(2, Icons.person_outline, Icons.person, 'Profile'),
-            _buildNavItem(3, Icons.system_update_alt_outlined, Icons.system_update_alt, 'Local-OTA'),
+            _buildNavItem(2, Icons.system_update_alt_outlined, Icons.system_update_alt, 'Local-OTA'),
+            _buildNavItem(3, Icons.person_outline, Icons.person, 'Profile'),
           ],
         ),
       ),

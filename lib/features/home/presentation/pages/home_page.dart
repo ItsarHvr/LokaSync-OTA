@@ -230,9 +230,9 @@ class _HomeState extends State<Home> {
     if (index == 1) {
       Navigator.pushReplacementNamed(context, '/monitoring');
     } else if (index == 2) {
-      Navigator.pushReplacementNamed(context, '/profile');
-    } else if (index == 3) {
       Navigator.pushReplacementNamed(context, '/local-update');
+    } else if (index == 3) {
+      Navigator.pushReplacementNamed(context, '/profile');
     }
   }
 
@@ -448,7 +448,7 @@ class _HomeState extends State<Home> {
                       Text(
                         node['node_location']?.toString() ?? 'Unknown Location',
                         style: GoogleFonts.poppins(
-                          fontSize: 16,
+                          fontSize: 14,
                           fontWeight: FontWeight.bold,
                           color: const Color(0xFF014331),
                         ),
@@ -457,7 +457,7 @@ class _HomeState extends State<Home> {
                       Text(
                         '${node['node_type']?.toString() ?? '-'} • ID: ${node['node_id']?.toString() ?? '-'}',
                         style: GoogleFonts.poppins(
-                          fontSize: 12,
+                          fontSize: 10,
                           color: Colors.grey.shade600,
                         ),
                       ),
@@ -470,7 +470,7 @@ class _HomeState extends State<Home> {
             Text(
               node['description']?.toString() ?? 'No description available',
               style: GoogleFonts.poppins(
-                fontSize: 14,
+                fontSize: 12,
                 color: Colors.black87,
               ),
             ),
@@ -506,7 +506,7 @@ class _HomeState extends State<Home> {
                                     value: v,
                                     child: Text(
                                       v,
-                                      style: GoogleFonts.poppins(fontSize: 12),
+                                      style: GoogleFonts.poppins(fontSize: 10),
                                     ),
                                   ))
                               .toList(),
@@ -552,7 +552,7 @@ class _HomeState extends State<Home> {
                       icon: const Icon(Icons.download, size: 16),
                       label: Text(
                         'Download',
-                        style: GoogleFonts.poppins(fontSize: 12),
+                        style: GoogleFonts.poppins(fontSize: 10),
                       ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFF014331),
@@ -571,7 +571,7 @@ class _HomeState extends State<Home> {
             Text(
               'Last Updated: ${_formatDate(node['latest_updated'])}',
               style: GoogleFonts.poppins(
-                fontSize: 12,
+                fontSize: 10,
                 color: Colors.grey.shade500,
               ),
             ),
@@ -583,7 +583,7 @@ class _HomeState extends State<Home> {
 
   Widget _buildLogCard(Map<String, dynamic> log) {
     final bool isSuccess = log['flash_status']?.toString().toLowerCase() == 'success';
-    final Color statusColor = isSuccess ? Colors.green : Colors.red;
+    final Color statusColor = isSuccess ? const Color.fromARGB(255, 0, 145, 5) : const Color.fromARGB(255, 181, 12, 0);
     final IconData statusIcon = isSuccess ? Icons.check_circle : Icons.error;
 
     return Container(
@@ -702,7 +702,7 @@ class _HomeState extends State<Home> {
           Text(
             'Page $page of $totalPages',
             style: GoogleFonts.poppins(
-              fontSize: 14,
+              fontSize: 12,
               color: Colors.grey.shade700,
             ),
           ),
@@ -779,7 +779,7 @@ class _HomeState extends State<Home> {
                       Text(
                         'Manage your IoT OTA updates',
                         style: GoogleFonts.poppins(
-                          fontSize: 14,
+                          fontSize: 12,
                           color: Colors.grey,
                         ),
                       ),
@@ -812,7 +812,7 @@ class _HomeState extends State<Home> {
                 children: [
                   _buildStatCard('Cloud-OTA Version Control', _nodeTotal, Icons.cloud_sync, const Color(0xFF014331)),
                   _buildStatCard('Cloud-OTA Update Log', _logTotal, Icons.history, const Color(0xFF1976D2)),
-                  _buildStatCard('Local-OTA Update Log', 0, Icons.smartphone, const Color(0xFFBF04)),
+                 // _buildStatCard('Local-OTA Update Log', 0, Icons.smartphone, const Color(0x00FFC105)),
                 ],
               ),
             ),

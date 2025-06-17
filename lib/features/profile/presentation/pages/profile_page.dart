@@ -24,7 +24,7 @@ class _ProfileState extends State<Profile> {
   bool _isLoading = false;
   // bool _isPasswordVisible = false;
   FirebaseUserEntity? _currentUser;
-  final int _currentIndex = 2; // Set index 2 for profile tab
+  final int _currentIndex = 3;
 
   @override
   void initState() {
@@ -76,7 +76,7 @@ void _onItemTapped(int index) {
     Navigator.pushReplacementNamed(context, '/home');
   } else if (index == 1) {
     Navigator.pushReplacementNamed(context, '/monitoring');
-  } else if (index == 3) {
+  } else if (index == 2) {
     Navigator.pushReplacementNamed(context, '/local-update');
   }
 }
