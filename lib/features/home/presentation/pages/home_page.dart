@@ -27,11 +27,17 @@ class _HomeState extends State<Home> {
   int _nodeTotal = 0;
 
   // OTA log state
-  List<Map<String, dynamic>> _logs = [];
-  bool _loadingLogs = false;
+
   int _logPage = 1;
   int _logPageSize = 10;
   int _logTotal = 0;
+List<Map<String, dynamic>> _cloudLogs = [];
+List<Map<String, dynamic>> _localLogs = [];
+bool _loadingCloudLogs = false;
+bool _loadingLocalLogs = false;
+int _logLocalTotal = 0;
+ 
+  
 
   int currentIndex = 0;
   String? _idToken;
@@ -51,7 +57,8 @@ class _HomeState extends State<Home> {
   Future<void> _getIdTokenAndFetch() async {
     setState(() {
       _loadingNodes = true;
-      _loadingLogs = true;
+      _loadingCloudLogs = true;
+      _loadingLocalLogs = true;
     });
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -59,11 +66,12 @@ class _HomeState extends State<Home> {
       setState(() {
         _idToken = token;
       });
-      await Future.wait([_fetchNodes(), _fetchLogs()]);
+      await Future.wait([_fetchNodes(), _fetchLogs(), _fetchLocalLogs()]);
     } catch (e) {
       setState(() {
         _loadingNodes = false;
-        _loadingLogs = false;
+        _loadingCloudLogs = false;
+        _loadingLocalLogs = false;
       });
     }
   }
@@ -100,27 +108,50 @@ class _HomeState extends State<Home> {
   }
 
   Future<void> _fetchLogs() async {
-    if (_idToken == null) return;
-    setState(() => _loadingLogs = true);
-    final uri = Uri.https('lokasync.tech', '/api/v1/log/', {
-      'page': _logPage.toString(),
-      'page_size': _logPageSize.toString(),
+  if (_idToken == null) return;
+  setState(() => _loadingCloudLogs = true);
+  final uri = Uri.https('lokasync.tech', '/api/v1/log/', {
+    'page': _logPage.toString(),
+    'page_size': _logPageSize.toString(),
+  });
+  final res = await http.get(
+    uri,
+    headers: {'Authorization': 'Bearer $_idToken'},
+  );
+  if (res.statusCode == 200) {
+    final data = jsonDecode(res.body);
+    setState(() {
+      _cloudLogs = List<Map<String, dynamic>>.from(data['data'] ?? []);
+      _logTotal = data['total_data'] ?? _cloudLogs.length;
+      _loadingCloudLogs = false;
     });
-    final res = await http.get(
-      uri,
-      headers: {'Authorization': 'Bearer $_idToken'},
-    );
-    if (res.statusCode == 200) {
-      final data = jsonDecode(res.body);
-      setState(() {
-        _logs = List<Map<String, dynamic>>.from(data['data'] ?? []);
-        _logTotal = data['total_data'] ?? _logs.length;
-        _loadingLogs = false;
-      });
-    } else {
-      setState(() => _loadingLogs = false);
-    }
+  } else {
+    setState(() => _loadingCloudLogs = false);
   }
+}
+
+Future<void> _fetchLocalLogs() async {
+  if (_idToken == null) return;
+  setState(() => _loadingLocalLogs = true);
+  final uri = Uri.https('lokasync.tech', '/api/v1/locallog/', {
+    'page': _logPage.toString(),
+    'page_size': _logPageSize.toString(),
+  });
+  final res = await http.get(
+    uri,
+    headers: {'Authorization': 'Bearer $_idToken'},
+  );
+  if (res.statusCode == 200) {
+    final data = jsonDecode(res.body);
+    setState(() {
+      _localLogs = List<Map<String, dynamic>>.from(data['data'] ?? []);
+      _logLocalTotal = data['total_data'] ?? _localLogs.length;
+      _loadingLocalLogs = false;
+    });
+  } else {
+    setState(() => _loadingLocalLogs = false);
+  }
+}
 
   // Fetch all versions for a node
   Future<void> _fetchNodeVersions(String nodeCodename) async {
@@ -251,8 +282,16 @@ class _HomeState extends State<Home> {
     onTap: () {
       if (title.contains('Version Control')) {
         setState(() => _activeTab = 'version_control');
-      } else if (title.contains('Update Log')) {
-        setState(() => _activeTab = 'ota_logs');
+      } else if (title.contains('Cloud-OTA')) {
+        setState(() {
+          _activeTab = 'ota_logs';
+          _fetchLogs();
+        });
+      } else if (title.contains('Local-OTA')) {
+        setState(() {
+          _activeTab = 'local_ota_logs';
+          _fetchLocalLogs();
+        });
       }
     },
     child: Container(
@@ -356,21 +395,16 @@ Widget _buildVersionControlContent() {
   );
 }
 
-  Widget _buildOtaLogsContent() {
-  if (_loadingLogs) {
-    return const Center(
-      child: CircularProgressIndicator(
-        color: Color(0xFF014331),
-      ),
-    );
+ Widget _buildCloudOtaLogsContent() {
+  if (_loadingCloudLogs) {
+    return const Center(child: CircularProgressIndicator(color: Color(0xFF014331)));
   }
-
   return ListView.builder(
     padding: const EdgeInsets.all(16),
-    itemCount: _logs.length + 1,
+    itemCount: _cloudLogs.length + 1,
     itemBuilder: (context, index) {
-      if (index < _logs.length) {
-        final log = _logs[index];
+      if (index < _cloudLogs.length) {
+        final log = _cloudLogs[index];
         return _buildLogCard(log);
       } else {
         return Container(
@@ -386,6 +420,39 @@ Widget _buildVersionControlContent() {
             onPageSizeChange: (s) {
               setState(() => _logPageSize = s);
               _fetchLogs();
+            },
+          ),
+        );
+      }
+    },
+  );
+}
+
+Widget _buildLocalOtaLogsContent() {
+  if (_loadingLocalLogs) {
+    return const Center(child: CircularProgressIndicator(color: Color(0xFF014331)));
+  }
+  return ListView.builder(
+    padding: const EdgeInsets.all(16),
+    itemCount: _localLogs.length + 1,
+    itemBuilder: (context, index) {
+      if (index < _localLogs.length) {
+        final log = _localLogs[index];
+        return _buildLogCard(log);
+      } else {
+        return Container(
+          color: Colors.white,
+          child: _buildPagination(
+            page: _logPage,
+            pageSize: _logPageSize,
+            total: _logLocalTotal,
+            onPageChange: (p) {
+              setState(() => _logPage = p);
+              _fetchLocalLogs();
+            },
+            onPageSizeChange: (s) {
+              setState(() => _logPageSize = s);
+              _fetchLocalLogs();
             },
           ),
         );
@@ -817,7 +884,7 @@ Widget _buildVersionControlContent() {
                 children: [
                   _buildStatCard('Cloud-OTA Version Control', _nodeTotal, Icons.cloud_sync, const Color(0xFF014331)),
                   _buildStatCard('Cloud-OTA Update Log', _logTotal, Icons.history, const Color(0xFF1976D2)),
-                  _buildStatCard('Local-OTA Update Log', 0, Icons.smartphone, const Color(0x00FFC105)),
+                  _buildStatCard('Local-OTA Update Log', _logLocalTotal, Icons.smartphone, const Color(0xFFFFC105)),
                 ],
               ),
             ),
@@ -828,7 +895,9 @@ Widget _buildVersionControlContent() {
             Expanded(
               child: _activeTab == 'version_control'
                   ? _buildVersionControlContent()
-                  : _buildOtaLogsContent(),
+                  : _activeTab == 'ota_logs'
+                      ? _buildCloudOtaLogsContent()
+                      : _buildLocalOtaLogsContent(),
             ),
           ],
         ),

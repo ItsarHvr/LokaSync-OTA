@@ -17,6 +17,8 @@ class OTALogEntry {
   final DateTime timestamp;
   final String nodeCodename;
   final String firmwareVersionOrigin;
+  final String nodeMac;      // <-- Add this
+  final String sessionId;   
   final String message;
   final Map<String, dynamic> data;
 
@@ -24,6 +26,8 @@ class OTALogEntry {
     required this.timestamp,
     required this.nodeCodename,
     required this.firmwareVersionOrigin,
+    required this.nodeMac,      // <-- Add this
+    required this.sessionId,
     required this.message,
     required this.data,
   });
@@ -33,14 +37,18 @@ class OTALogEntry {
         'type': 'ap-ota-log',
         'message': message,
         'node_codename': nodeCodename,
-        'firmware_version-origin': firmwareVersionOrigin,
+        'firmware_version_origin': firmwareVersionOrigin,
+        'node_mac': nodeMac,      // <-- Add this
+        'session_id': sessionId,
         'data': data,
       };
 
   static OTALogEntry fromJson(Map<String, dynamic> json) => OTALogEntry(
         timestamp: DateTime.parse(json['timestamp']),
         nodeCodename: json['node_codename'],
-        firmwareVersionOrigin: json['firmware_version-origin'],
+        firmwareVersionOrigin: json['firmware_version_origin'] ?? '-',
+        nodeMac: json['node_mac'] ?? '-', // <-- Add this
+        sessionId: json['session_id'] ?? '-',
         message: json['message'],
         data: Map<String, dynamic>.from(json['data']),
       );
@@ -82,6 +90,15 @@ class _OTAUpdatePageState extends State<OTAUpdatePage> {
   final _ipController = TextEditingController(text: "192.168.19.63");
   final _pwController = TextEditingController();
 
+  String _generateSessionId() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  final rand = List.generate(5, (_) => chars[(DateTime.now().millisecondsSinceEpoch + DateTime.now().microsecondsSinceEpoch + _randomInt()) % chars.length]).join();
+  final n = List.generate(5, (_) => (_randomInt() % 10).toString()).join();
+  return rand + n;
+}
+
+int _randomInt() => DateTime.now().microsecondsSinceEpoch % 1000;
+
   Future<void> _pickFirmware() async {
     setState(() {
       _log = '';
@@ -122,6 +139,12 @@ class _OTAUpdatePageState extends State<OTAUpdatePage> {
     return match != null ? match.group(1)!.trim() : '-';
   }
 
+  String _parseMacAddress(String body) {
+    final reg = RegExp(r'MAC Address\s*:\s*([A-Fa-f0-9]+)');
+    final match = reg.firstMatch(body);
+    return match != null ? match.group(1)! : '-';
+  }
+
   Future<void> _uploadFirmware() async {
     if (_firmwareFile == null || _ipController.text.isEmpty || _pwController.text.isEmpty) {
       setState(() {
@@ -136,9 +159,12 @@ class _OTAUpdatePageState extends State<OTAUpdatePage> {
       _progress = 0.0;
     });
 
+    final sessionId = _generateSessionId();
+
     final url = Uri.parse('http://${_ipController.text}/upload');
     final request = http.MultipartRequest('POST', url)
       ..fields['password'] = _pwController.text
+      ..fields['session_id'] = sessionId
       ..files.add(await http.MultipartFile.fromPath('update', _firmwareFile!.path));
 
     final stopwatch = Stopwatch()..start();
@@ -168,6 +194,7 @@ class _OTAUpdatePageState extends State<OTAUpdatePage> {
       // Parse dynamic fields
       final firmwareVersionOrigin = _parseFirmwareVersionOrigin(response.body);
       final nodeCodename = _parseCodename(response.body);
+      final nodeMac = _parseMacAddress(response.body);
 
       setState(() {
         _isUploading = false;
@@ -189,6 +216,8 @@ class _OTAUpdatePageState extends State<OTAUpdatePage> {
         timestamp: DateTime.now(),
         nodeCodename: nodeCodename,
         firmwareVersionOrigin: firmwareVersionOrigin,
+        nodeMac: nodeMac,
+        sessionId: sessionId,
         message: "Local-OTA Update Complete",
         data: {
           "Firmware Size (Bytes)": _firmwareSize?.toStringAsFixed(2) ?? '-',
